@@ -1,6 +1,7 @@
 package copier
 
 import (
+	"copier/rt"
 	"database/sql"
 	"database/sql/driver"
 	"fmt"
@@ -172,6 +173,12 @@ func copier(toValue interface{}, fromValue interface{}, opt Option) (err error) 
 		return
 	}
 
+	toRValue := rt.ReflectValueToValue(&to)
+	fromRValue := rt.ReflectValueToValue(&from)
+	cvtFunc, _ := LoadConvertFunc(fromType, toType)
+
+	_ = cvtFunc(*fromRValue, *toRValue)
+	return
 	if from.Kind() != reflect.Slice && fromType.Kind() == reflect.Map && toType.Kind() == reflect.Map {
 		if !fromType.Key().ConvertibleTo(toType.Key()) {
 			return ErrMapKeyNotMatch
@@ -629,7 +636,7 @@ func set(to, from reflect.Value, deepCopy bool, converters map[converterPair]Typ
 
 	// try convert directly
 	if from.Type().ConvertibleTo(to.Type()) {
-		to.Set(from.Convert(to.Type()))
+		Convert(to, from)
 		return true, nil
 	}
 
@@ -684,6 +691,16 @@ func set(to, from reflect.Value, deepCopy bool, converters map[converterPair]Typ
 	}
 
 	return false, nil
+}
+
+func Convert(toValue reflect.Value, fromValue reflect.Value) {
+	toRValue := rt.ReflectValueToValue(&toValue)
+	fromRValue := rt.ReflectValueToValue(&fromValue)
+	fn, _ := LoadConvertFunc(fromValue.Type(), toValue.Type())
+	if fn == nil {
+		panic("reflect.Value.Convert: value of type " + fromValue.Type().String() + " cannot be converted to type " + toValue.Type().String())
+	}
+	_ = fn(*fromRValue, *toRValue)
 }
 
 // lookupAndCopyWithConverter looks up the type pair, on success the TypeConverter Fn func is called to copy src to dst field.

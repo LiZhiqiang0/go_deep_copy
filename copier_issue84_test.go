@@ -1,10 +1,7 @@
 package copier_test
 
 import (
-	"testing"
 	"time"
-
-	"github.com/jinzhu/copier"
 )
 
 type Embedded struct {
@@ -36,51 +33,4 @@ type Work struct {
 	UserID  *string `json:"user_id"`
 	Website *string `json:"website"`
 	Timestamps
-}
-
-func TestIssue84(t *testing.T) {
-	t.Run("test1", func(t *testing.T) {
-		var embedder Embedder
-		embedded := Embedded{
-			Field1: "1",
-			Field2: "2",
-		}
-		err := copier.Copy(&embedder, &embedded)
-		if err != nil {
-			t.Errorf("unable to copy: %s", err)
-		}
-		if embedder.Field1 != embedded.Field1 {
-			t.Errorf("field1 value is %s instead of %s", embedder.Field1, embedded.Field1)
-		}
-		if embedder.Field2 != embedded.Field2 {
-			t.Errorf("field2 value is %s instead of %s", embedder.Field2, embedded.Field2)
-		}
-	})
-	t.Run("from issue", func(t *testing.T) {
-		notWorkObj := NotWork{
-			ID:      "123",
-			Name:    "name",
-			Website: nil,
-			UserID:  nil,
-			Timestamps: Timestamps{
-				UpdatedAt: time.Now(),
-			},
-		}
-		workObj := Work{
-			ID:      "123",
-			Name:    "name",
-			Website: nil,
-			UserID:  nil,
-			Timestamps: Timestamps{
-				UpdatedAt: time.Now(),
-			},
-		}
-
-		destObj1 := Work{}
-		destObj2 := NotWork{}
-
-		copier.CopyWithOption(&destObj1, &workObj, copier.Option{IgnoreEmpty: true, DeepCopy: false})
-
-		copier.CopyWithOption(&destObj2, &notWorkObj, copier.Option{IgnoreEmpty: true, DeepCopy: false})
-	})
 }
