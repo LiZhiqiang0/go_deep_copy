@@ -2,30 +2,13 @@ package copier
 
 import (
 	"bytes"
-	"copier/rt"
 	"encoding/json"
+	"github.com/modern-go/reflect2"
 	"reflect"
 	"sort"
+	"strings"
+	"unicode"
 )
-
-type StructInfo struct {
-	list []StructField
-	typ  reflect.Type
-}
-
-type StructField struct {
-	name        string
-	nameBytes   []byte
-	nameNonEsc  string
-	nameEscHTML string
-	tag         bool
-	index       []int
-	typ         reflect.Type
-	goType      *rt.Type
-	omitEmpty   bool
-	quoted      bool
-	offset      uintptr // 相较于结构体起始位置的偏移量
-}
 
 // A field represents a single field found in a struct.
 type field struct {
@@ -64,6 +47,130 @@ func (x byIndex) Less(i, j int) bool {
 		}
 	}
 	return len(x[i].index) < len(x[j].index)
+}
+
+// StructDescriptor describe how should we encode/decode the struct
+type StructDescriptor struct {
+	Type   reflect2.Type
+	Fields []*Binding
+}
+
+// GetField get one field from the descriptor by its name.
+// Can not use map here to keep field orders.
+func (structDescriptor *StructDescriptor) GetField(fieldName string) *Binding {
+	for _, binding := range structDescriptor.Fields {
+		if binding.Field.Name() == fieldName {
+			return binding
+		}
+	}
+	return nil
+}
+
+// Binding describe how should we encode/decode the struct field
+type Binding struct {
+	levels    []int
+	Field     *reflect2.UnsafeStructField
+	FromNames []string
+	ToNames   []string
+}
+
+func describeStruct(typ reflect2.Type) *StructDescriptor {
+	structType := typ.(*reflect2.UnsafeStructType)
+	var embeddedBindings []*Binding
+	var bindings []*Binding
+	for i := 0; i < structType.NumField(); i++ {
+		field := structType.Field(i).(*reflect2.UnsafeStructField)
+		tag, _ := field.Tag().Lookup("copier")
+		if tag == "-" || field.Name() == "_" {
+			continue
+		}
+		tagParts := strings.Split(tag, ",")
+		if field.Anonymous() && (tag == "" || tagParts[0] == "") {
+			if field.Type().Kind() == reflect.Struct {
+				structDescriptor := describeStruct(field.Type())
+				for _, binding := range structDescriptor.Fields {
+					binding.levels = append([]int{i}, binding.levels...)
+					embeddedBindings = append(embeddedBindings, binding)
+				}
+				continue
+			} else if field.Type().Kind() == reflect.Ptr {
+				ptrType := field.Type().(*reflect2.UnsafePtrType)
+				if ptrType.Elem().Kind() == reflect.Struct {
+					structDescriptor := describeStruct(ptrType.Elem())
+					for _, binding := range structDescriptor.Fields {
+						binding.levels = append([]int{i}, binding.levels...)
+						embeddedBindings = append(embeddedBindings, binding)
+					}
+					continue
+				}
+			}
+		}
+		fieldNames := calcFieldNames(field.Name(), tagParts[0], tag)
+		binding := &Binding{
+			Field:     field,
+			FromNames: fieldNames,
+			ToNames:   fieldNames,
+		}
+		binding.levels = []int{i}
+		bindings = append(bindings, binding)
+	}
+	return createStructDescriptor(typ, bindings, embeddedBindings)
+}
+
+func createStructDescriptor(typ reflect2.Type, bindings []*Binding, embeddedBindings []*Binding) *StructDescriptor {
+	structDescriptor := &StructDescriptor{
+		Type:   typ,
+		Fields: bindings,
+	}
+	// merge normal & embedded bindings & sort with original order
+	allBindings := sortableBindings(append(embeddedBindings, structDescriptor.Fields...))
+	sort.Sort(allBindings)
+	structDescriptor.Fields = allBindings
+	return structDescriptor
+}
+
+type sortableBindings []*Binding
+
+func (bindings sortableBindings) Len() int {
+	return len(bindings)
+}
+
+func (bindings sortableBindings) Less(i, j int) bool {
+	left := bindings[i].levels
+	right := bindings[j].levels
+	k := 0
+	for {
+		if left[k] < right[k] {
+			return true
+		} else if left[k] > right[k] {
+			return false
+		}
+		k++
+	}
+}
+
+func (bindings sortableBindings) Swap(i, j int) {
+	bindings[i], bindings[j] = bindings[j], bindings[i]
+}
+
+func calcFieldNames(originalFieldName string, tagProvidedFieldName string, wholeTag string) []string {
+	// ignore?
+	if wholeTag == "-" {
+		return []string{}
+	}
+	// rename?
+	var fieldNames []string
+	if tagProvidedFieldName == "" {
+		fieldNames = []string{originalFieldName}
+	} else {
+		fieldNames = []string{tagProvidedFieldName}
+	}
+	// private?
+	isNotExported := unicode.IsLower(rune(originalFieldName[0])) || originalFieldName[0] == '_'
+	if isNotExported {
+		fieldNames = []string{}
+	}
+	return fieldNames
 }
 
 func TypeFields(t reflect.Type) structFields {
@@ -255,4 +362,14 @@ func dominantField(fields []field) (field, bool) {
 		return field{}, false
 	}
 	return fields[0], true
+}
+
+func loadStructFieldsInfo(vt reflect2.Type) *StructDescriptor {
+	if structInfo, ok := structInfoCache.Get(vt); ok {
+		return structInfo.(*StructDescriptor)
+	}
+	structInfo := describeStruct(vt)
+	// 并发写；无法处理递归
+	structInfoCache.Set(vt, structInfo)
+	return structInfo
 }

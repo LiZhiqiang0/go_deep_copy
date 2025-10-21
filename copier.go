@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"fmt"
+	"github.com/modern-go/reflect2"
 	"reflect"
 	"strings"
 	"sync"
@@ -173,11 +174,21 @@ func copier(toValue interface{}, fromValue interface{}, opt Option) (err error) 
 		return
 	}
 
-	toRValue := rt.ReflectValueToValue(&to)
-	fromRValue := rt.ReflectValueToValue(&from)
-	cvtFunc, _ := LoadConvertFunc(fromType, toType)
-
-	_ = cvtFunc(*fromRValue, *toRValue)
+	fromPtr := reflect2.PtrOf(fromValue)
+	toPtr := reflect2.PtrOf(toValue)
+	fromType2 := reflect2.Type2(fromType)
+	toType2 := reflect2.Type2(toType)
+	cvtFunc, _ := LoadConvertFunc(fromType2, toType2)
+	if cvtFunc == nil {
+		return ErrNotSupported
+	}
+	_ = cvtFunc(rt.Value{
+		Typ: fromType2,
+		Ptr: fromPtr,
+	}, rt.Value{
+		Typ: toType2,
+		Ptr: toPtr,
+	})
 	return
 	if from.Kind() != reflect.Slice && fromType.Kind() == reflect.Map && toType.Kind() == reflect.Map {
 		if !fromType.Key().ConvertibleTo(toType.Key()) {
@@ -572,7 +583,7 @@ func indirect(reflectValue reflect.Value) reflect.Value {
 }
 
 func indirectType(reflectType reflect.Type) (_ reflect.Type, isPtr bool) {
-	for reflectType.Kind() == reflect.Ptr || reflectType.Kind() == reflect.Slice {
+	for reflectType.Kind() == reflect.Ptr {
 		reflectType = reflectType.Elem()
 		isPtr = true
 	}
@@ -636,7 +647,7 @@ func set(to, from reflect.Value, deepCopy bool, converters map[converterPair]Typ
 
 	// try convert directly
 	if from.Type().ConvertibleTo(to.Type()) {
-		Convert(to, from)
+		to.Set(from.Convert(to.Type()))
 		return true, nil
 	}
 
@@ -691,16 +702,6 @@ func set(to, from reflect.Value, deepCopy bool, converters map[converterPair]Typ
 	}
 
 	return false, nil
-}
-
-func Convert(toValue reflect.Value, fromValue reflect.Value) {
-	toRValue := rt.ReflectValueToValue(&toValue)
-	fromRValue := rt.ReflectValueToValue(&fromValue)
-	fn, _ := LoadConvertFunc(fromValue.Type(), toValue.Type())
-	if fn == nil {
-		panic("reflect.Value.Convert: value of type " + fromValue.Type().String() + " cannot be converted to type " + toValue.Type().String())
-	}
-	_ = fn(*fromRValue, *toRValue)
 }
 
 // lookupAndCopyWithConverter looks up the type pair, on success the TypeConverter Fn func is called to copy src to dst field.

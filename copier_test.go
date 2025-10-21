@@ -6,9 +6,15 @@ type User struct {
 	NickName string
 	Role     string
 	Age      int32
-	FakeAge  int32
+	FakeAge  *int32
 	Notes    []string
 	Flags    []byte
+	Class    *Class
+}
+
+type Class struct {
+	Name string
+	ID   int64
 }
 
 func (user User) DoubleAge() int32 {
@@ -27,6 +33,7 @@ type Employee struct {
 	SuperRule string
 	Notes     []string
 	Flags     []byte
+	Class     interface{}
 }
 
 func (employee *Employee) Role(role string) {

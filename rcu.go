@@ -1,7 +1,7 @@
 package copier
 
 import (
-	"copier/rt"
+	"github.com/modern-go/reflect2"
 	"sync"
 	"sync/atomic"
 	"unsafe"
@@ -24,13 +24,13 @@ func NewRCU() (c *RCU) {
 	}
 }
 
-func (c *RCU) Get(key *rt.Type) (v any, ok bool) {
+func (c *RCU) Get(key reflect2.Type) (v any, ok bool) {
 	m := (*linerMap)(atomic.LoadPointer(&c.m))
 	res := m.get(key)
 	return res, res != nil
 }
 
-func (c *RCU) Set(key *rt.Type, v any) {
+func (c *RCU) Set(key reflect2.Type, v any) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -38,7 +38,7 @@ func (c *RCU) Set(key *rt.Type, v any) {
 	atomic.StorePointer(&c.m, unsafe.Pointer(m.add(key, v)))
 }
 
-func (c *RCU) GetOrSet(key *rt.Type, newV any) (v any, loaded bool) {
+func (c *RCU) GetOrSet(key reflect2.Type, newV any) (v any, loaded bool) {
 	got, ok := c.Get(key)
 	if ok {
 		return got, true
@@ -73,7 +73,7 @@ type linerMap struct {
 }
 
 type mapEntry struct {
-	vt *rt.Type
+	vt reflect2.Type
 	fn any
 }
 
@@ -97,9 +97,10 @@ func (self *linerMap) copy() *linerMap {
 	return fork
 }
 
-func (self *linerMap) get(vt *rt.Type) any {
+func (self *linerMap) get(vt reflect2.Type) any {
 	i := self.m + 1
-	p := vt.Hash & self.m
+	h := uint32(vt.RType())
+	p := h & self.m
 
 	/* linear probing */
 	for ; i > 0; i-- {
@@ -116,7 +117,7 @@ func (self *linerMap) get(vt *rt.Type) any {
 	return nil
 }
 
-func (self *linerMap) add(vt *rt.Type, fn any) *linerMap {
+func (self *linerMap) add(vt reflect2.Type, fn any) *linerMap {
 	p := self.copy()
 	f := float64(atomic.LoadUint64(&p.n)+1) / float64(p.m+1)
 
@@ -145,8 +146,8 @@ func (self *linerMap) rehash() *linerMap {
 	return r
 }
 
-func (self *linerMap) insert(vt *rt.Type, fn any) {
-	h := vt.Hash
+func (self *linerMap) insert(vt reflect2.Type, fn any) {
+	h := uint32(vt.RType())
 	p := h & self.m
 
 	/* linear probing */
