@@ -1,1 +1,0 @@
-package copier_test

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"unicode"
+	"unsafe"
 )
 
 // These flags define options for tag handling
@@ -173,23 +174,23 @@ func copier(toValue interface{}, fromValue interface{}, opt Option) (err error) 
 		}
 		return
 	}
-
-	fromPtr := reflect2.PtrOf(fromValue)
-	toPtr := reflect2.PtrOf(toValue)
-	fromType2 := reflect2.Type2(fromType)
-	toType2 := reflect2.Type2(toType)
-	cvtFunc, _ := LoadConvertFunc(fromType2, toType2)
-	if cvtFunc == nil {
-		return ErrNotSupported
+	var fromPtr unsafe.Pointer
+	if from.CanAddr() {
+		fromPtr = unsafe.Pointer(from.UnsafeAddr())
+	} else {
+		fromPtr = reflect2.PtrOf(fromValue)
 	}
-	_ = cvtFunc(rt.Value{
+	toPtr := to.UnsafeAddr()
+	fromType2 := reflect2.Type2(from.Type())
+	toType2 := reflect2.Type2(to.Type())
+	cvtFunc := LoadConvertFunc(fromType2, toType2)
+	return cvtFunc(rt.Value{
 		Typ: fromType2,
 		Ptr: fromPtr,
 	}, rt.Value{
 		Typ: toType2,
-		Ptr: toPtr,
+		Ptr: unsafe.Pointer(toPtr),
 	})
-	return
 	if from.Kind() != reflect.Slice && fromType.Kind() == reflect.Map && toType.Kind() == reflect.Map {
 		if !fromType.Key().ConvertibleTo(toType.Key()) {
 			return ErrMapKeyNotMatch

@@ -151,3 +151,44 @@ func (v Value) Uint() uint64 {
 	}
 	return 0
 }
+
+// Bool returns v's underlying value, as a bool.
+// It panics if v's Kind is not [Bool].
+func (v Value) Bool() bool {
+	return *(*bool)(v.Ptr)
+}
+
+// String returns v's underlying value, as a string.
+// It panics if v's Kind is not [String].
+func (v Value) String() string {
+	return *(*string)(v.Ptr)
+}
+
+// Complex returns v's underlying value, as a complex128.
+// It panics if v's Kind is not [Complex64] or [Complex128].
+func (v Value) Complex() complex128 {
+	k := v.Typ.Kind()
+	p := v.Ptr
+	switch k {
+	case reflect.Complex64:
+		return complex128(*(*complex64)(p))
+	case reflect.Complex128:
+		return *(*complex128)(p)
+	}
+	return 0
+}
+
+func getKind(val reflect2.Type) reflect.Kind {
+	kind := val.Kind()
+
+	switch {
+	case kind >= reflect.Int && kind <= reflect.Int64:
+		return reflect.Int
+	case kind >= reflect.Uint && kind <= reflect.Uintptr:
+		return reflect.Uint
+	case kind >= reflect.Float32 && kind <= reflect.Float64:
+		return reflect.Float32
+	default:
+		return kind
+	}
+}

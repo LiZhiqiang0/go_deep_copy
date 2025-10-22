@@ -21,15 +21,14 @@ func init() {
 
 type rcuCacheInfo struct {
 	ConvertFunc ConvertFunc
-	IsFinal     bool
 }
 
 type ConvertFunc func(rt.Value, rt.Value) error
 
-func LoadConvertFunc(v, t reflect2.Type) (ConvertFunc, bool) {
+func LoadConvertFunc(v, t reflect2.Type) ConvertFunc {
 	key := [2]uintptr{v.RType(), t.RType()}
 	if fi, ok := mFuncMap.Load(key); ok {
-		return fi.(rcuCacheInfo).ConvertFunc, fi.(rcuCacheInfo).IsFinal
+		return fi.(rcuCacheInfo).ConvertFunc
 	}
 	var (
 		wg sync.WaitGroup
@@ -41,17 +40,26 @@ func LoadConvertFunc(v, t reflect2.Type) (ConvertFunc, bool) {
 			wg.Wait()
 			return f(v, t)
 		},
-		IsFinal: false,
 	})
 	if loaded {
-		return fi.(rcuCacheInfo).ConvertFunc, fi.(rcuCacheInfo).IsFinal
+		return fi.(rcuCacheInfo).ConvertFunc
 	}
 	// Compute the real encoder and replace the indirect func with it.
 	f = convertOp(v, t)
+	wrapFunc := ConvertFunc(func(v rt.Value, t rt.Value) error {
+		if f == nil {
+			return ErrNotSupported
+		}
+		if v.Typ.UnsafeIsNil(v.Ptr) {
+			t.Typ.UnsafeSet(t.Ptr, t.Typ.UnsafeNew())
+			return nil
+		}
+		return f(v, t)
+	})
 	wg.Done()
-	mFuncMap.Store(key, rcuCacheInfo{ConvertFunc: f, IsFinal: true})
+	mFuncMap.Store(key, rcuCacheInfo{ConvertFunc: wrapFunc})
 
-	return f, true
+	return wrapFunc
 }
 
 func convertOp(v, t reflect2.Type) func(v, t rt.Value) error {
@@ -156,6 +164,18 @@ func convertOp(v, t reflect2.Type) func(v, t rt.Value) error {
 			}
 		case reflect.Slice:
 			return cvtSliceToSlice
+		case reflect.Array:
+			return cvtSliceToArray
+		case reflect.Interface:
+			return cvtTToI
+		}
+
+	case reflect.Array:
+		switch tKind {
+		case reflect.Slice:
+			return cvtArrayToSlice
+		case reflect.Array:
+			return cvtArray
 		case reflect.Interface:
 			return cvtTToI
 		}
@@ -178,7 +198,21 @@ func convertOp(v, t reflect2.Type) func(v, t rt.Value) error {
 			return cvtMapToMap
 		}
 	case reflect.Ptr:
-		return cvtPtrToT
+		switch tKind {
+		case reflect.Ptr:
+			return cvtTToPtr
+		default:
+			return cvtPtrToT
+		}
+	case reflect.Interface:
+		switch tKind {
+		case reflect.Interface:
+			return cvtIToI
+		case reflect.Ptr:
+			return cvtTToPtr
+		default:
+			return cvtIToT
+		}
 	}
 	if tKind == reflect.Ptr {
 		return cvtTToPtr
@@ -483,13 +517,10 @@ func cvtSliceToSlice(v, t rt.Value) error {
 		tType.UnsafeSetNil(t.Ptr)
 		return nil
 	}
-	elemConverter, isFinalEncoder := LoadConvertFunc(vElemType, tElemType)
 	length := vType.UnsafeLengthOf(v.Ptr)
 	tPtr := tType.UnsafeNew()
 	for i := 0; i < length; i++ {
-		if !isFinalEncoder {
-			elemConverter, isFinalEncoder = LoadConvertFunc(vElemType, tElemType)
-		}
+		elemConverter := LoadConvertFunc(vElemType, tElemType)
 		tType.UnsafeGrow(tPtr, i+1)
 		tElemPtr := tType.UnsafeGetIndex(tPtr, i)
 		vElemPtr := vType.UnsafeGetIndex(v.Ptr, i)
@@ -512,15 +543,12 @@ func cvtSliceToSlice(v, t rt.Value) error {
 func cvtSliceToArray(v, t rt.Value) error {
 	vType := v.Typ.(*reflect2.UnsafeSliceType)
 	tType := t.Typ.(*reflect2.UnsafeArrayType)
-	vElemType := v.Typ.(reflect2.SliceType).Elem()
-	tElemType := t.Typ.(*reflect2.UnsafeSliceType).Elem()
-	elemConverter, isFinalEncoder := LoadConvertFunc(vElemType, tElemType)
+	vElemType := vType.Elem()
+	tElemType := tType.Elem()
 	vLength := vType.UnsafeLengthOf(v.Ptr)
 	tLength := tType.Len()
 	for i := 0; i < vLength && i < tLength; i++ {
-		if !isFinalEncoder {
-			elemConverter, isFinalEncoder = LoadConvertFunc(vElemType, tElemType)
-		}
+		elemConverter := LoadConvertFunc(vElemType, tElemType)
 		tElemPtr := tType.UnsafeGetIndex(t.Ptr, i)
 		vElemPtr := vType.UnsafeGetIndex(v.Ptr, i)
 		err := elemConverter(rt.Value{
@@ -541,15 +569,12 @@ func cvtSliceToArray(v, t rt.Value) error {
 func cvtArrayToSlice(v, t rt.Value) error {
 	vType := v.Typ.(*reflect2.UnsafeArrayType)
 	tType := t.Typ.(*reflect2.UnsafeSliceType)
-	vElemType := v.Typ.(reflect2.SliceType).Elem()
-	tElemType := t.Typ.(*reflect2.UnsafeSliceType).Elem()
-	elemConverter, isFinalEncoder := LoadConvertFunc(vElemType, tElemType)
+	vElemType := vType.Elem()
+	tElemType := tType.Elem()
 	vLength := vType.Len()
 	tPtr := tType.UnsafeNew()
 	for i := 0; i < vLength; i++ {
-		if !isFinalEncoder {
-			elemConverter, isFinalEncoder = LoadConvertFunc(vElemType, tElemType)
-		}
+		elemConverter := LoadConvertFunc(vElemType, tElemType)
 		tType.UnsafeGrow(tPtr, i+1)
 		tElemPtr := tType.UnsafeGetIndex(tPtr, i)
 		vElemPtr := vType.UnsafeGetIndex(v.Ptr, i)
@@ -572,15 +597,12 @@ func cvtArrayToSlice(v, t rt.Value) error {
 func cvtArray(v, t rt.Value) error {
 	vType := v.Typ.(*reflect2.UnsafeArrayType)
 	tType := t.Typ.(*reflect2.UnsafeArrayType)
-	vElemType := v.Typ.(reflect2.SliceType).Elem()
-	tElemType := t.Typ.(reflect2.SliceType).Elem()
-	elemConverter, isFinalEncoder := LoadConvertFunc(vElemType, tElemType)
+	vElemType := vType.Elem()
+	tElemType := tType.Elem()
 	vLength := vType.Len()
 	tLength := tType.Len()
 	for i := 0; i < vLength && i < tLength; i++ {
-		if !isFinalEncoder {
-			elemConverter, isFinalEncoder = LoadConvertFunc(vElemType, tElemType)
-		}
+		elemConverter := LoadConvertFunc(vElemType, tElemType)
 		tElemPtr := tType.UnsafeGetIndex(t.Ptr, i)
 		vElemPtr := vType.UnsafeGetIndex(v.Ptr, i)
 		err := elemConverter(rt.Value{
@@ -599,50 +621,94 @@ func cvtArray(v, t rt.Value) error {
 
 // convertOp: T -> interface{}
 func cvtTToI(v rt.Value, t rt.Value) error {
-	tObjPtr := v.Typ.UnsafeNew()
-	v.Typ.UnsafeSet(tObjPtr, v.Ptr)
-	*(*interface{})(t.Ptr) = v.Typ.UnsafeIndirect(tObjPtr)
-	return nil
-}
-
-func cvtTToPtr(v rt.Value, t rt.Value) error {
-	t.Typ = t.Typ.(*reflect2.UnsafePtrType).Elem()
-	cvtFunc, _ := LoadConvertFunc(v.Typ, t.Typ)
-	if cvtFunc == nil {
-		return nil
-	}
-	if *((*unsafe.Pointer)(t.Ptr)) == nil {
-		//pointer to null, we have to allocate memory to hold the value
-		newPtr := t.Typ.UnsafeNew()
+	vKind := getKind(v.Typ)
+	tPObj := (*interface{})(t.Ptr)
+	var vObj interface{}
+	switch vKind {
+	case reflect.Int:
+		vObj = v.Int()
+	case reflect.Uint:
+		vObj = v.Uint()
+	case reflect.Float32:
+		vObj = v.Float()
+	case reflect.Bool:
+		vObj = v.Bool()
+	case reflect.Complex64, reflect.Complex128:
+		vObj = v.Complex()
+	case reflect.String:
+		vObj = v.String()
+	case reflect.Map, reflect.Array, reflect.Slice, reflect.Struct:
+		vObj = v.Typ.UnsafeNew()
+		vPtr := reflect2.PtrOf(vObj)
+		cvtFunc := LoadConvertFunc(v.Typ, v.Typ)
+		if cvtFunc == nil {
+			return nil
+		}
 		err := cvtFunc(v, rt.Value{
-			Ptr: newPtr,
 			Typ: v.Typ,
+			Ptr: vPtr,
 		})
 		if err != nil {
 			return err
 		}
-		*((*unsafe.Pointer)(t.Ptr)) = newPtr
-	} else {
-		t.Ptr = *((*unsafe.Pointer)(t.Ptr))
-		err := cvtFunc(v, t)
-		if err != nil {
-			return err
-		}
+		*tPObj = v.Typ.UnsafeIndirect(vPtr)
+		return nil
+
 	}
+	*tPObj = vObj
+	return nil
+}
+
+// convertOp: interface{} -> T
+func cvtIToT(v rt.Value, t rt.Value) error {
+	vObj := v.Typ.UnsafeIndirect(v.Ptr)
+	v.Typ = reflect2.TypeOf(vObj)
+	if v.Typ.Kind() == reflect.Ptr {
+		v.Typ = v.Typ.(*reflect2.UnsafePtrType).Elem()
+	}
+	v.Ptr = reflect2.PtrOf(vObj)
+	cvtFunc := LoadConvertFunc(v.Typ, t.Typ)
+	return cvtFunc(v, t)
+}
+
+// convertOp: interface{} -> interface{}
+func cvtIToI(v rt.Value, t rt.Value) error {
+	vObj := v.Typ.UnsafeIndirect(v.Ptr)
+	v.Typ = reflect2.TypeOf(vObj)
+	if v.Typ.Kind() == reflect.Ptr {
+		v.Typ = v.Typ.(*reflect2.UnsafePtrType).Elem()
+	}
+	v.Ptr = reflect2.PtrOf(vObj)
+	cvtFunc := LoadConvertFunc(v.Typ, t.Typ)
+	return cvtFunc(v, t)
+}
+
+func cvtTToPtr(v rt.Value, t rt.Value) error {
+	t.Typ = t.Typ.(*reflect2.UnsafePtrType).Elem()
+	cvtFunc := LoadConvertFunc(v.Typ, t.Typ)
+	newPtr := t.Typ.UnsafeNew()
+	err := cvtFunc(v, rt.Value{
+		Ptr: newPtr,
+		Typ: t.Typ,
+	})
+	if err != nil {
+		return err
+	}
+	*((*unsafe.Pointer)(t.Ptr)) = newPtr
 	return nil
 }
 
 func cvtPtrToT(v rt.Value, t rt.Value) error {
 	v.Typ = v.Typ.(*reflect2.UnsafePtrType).Elem()
-	cvtFunc, _ := LoadConvertFunc(v.Typ, t.Typ)
+	cvtFunc := LoadConvertFunc(v.Typ, t.Typ)
 	if cvtFunc == nil {
 		return nil
 	}
 	if *((*unsafe.Pointer)(v.Ptr)) == nil {
+		t.Typ.UnsafeSet(t.Ptr, t.Typ.UnsafeNew())
 		return nil
 	} else {
-		vObj := v.Typ.UnsafeIndirect(v.Ptr)
-		vPtr := reflect2.PtrOf(vObj)
+		vPtr := *((*unsafe.Pointer)(v.Ptr))
 		err := cvtFunc(rt.Value{
 			Ptr: vPtr,
 			Typ: v.Typ,
@@ -658,24 +724,25 @@ func cvtPtrToT(v rt.Value, t rt.Value) error {
 func cvtStructToStruct(v rt.Value, t rt.Value) error {
 	vInfo := loadStructFieldsInfo(v.Typ)
 	tInfo := loadStructFieldsInfo(t.Typ)
-	tFieldMap := make(map[string]reflect2.StructField, len(tInfo.Fields))
+	tFieldMap := make(map[string]*Binding, len(tInfo.Fields))
 	for i := 0; i < len(tInfo.Fields); i++ {
-		tFieldMap[tInfo.Fields[i].Field.Name()] = tInfo.Fields[i].Field
+		tFieldMap[tInfo.Fields[i].Name] = tInfo.Fields[i]
 	}
 	vPtr := v.Ptr
 	tPtr := t.Ptr
 	for i := 0; i < len(vInfo.Fields); i++ {
-		f := vInfo.Fields[i].Field
-		tf, ok := tFieldMap[f.Name()]
+		f := vInfo.Fields[i]
+
+		tf, ok := tFieldMap[f.Name]
 		if !ok {
 			continue
 		}
-		fType := f.Type()
-		tfType := tf.Type()
+		fType := f.Field.Type()
+		tfType := tf.Field.Type()
 		// 直接使用指针 + 偏移，避免去将指针转换为对象
-		childVPtr := pointerOffset(vPtr, f.Offset())
-		childTPtr := pointerOffset(tPtr, tf.Offset())
-		cvtFunc, _ := LoadConvertFunc(fType, tfType)
+		childVPtr := pointerOffset(vPtr, f.Field.Offset())
+		childTPtr := pointerOffset(tPtr, tf.Field.Offset())
+		cvtFunc := LoadConvertFunc(fType, tfType)
 		if cvtFunc == nil {
 			continue
 		}
@@ -701,23 +768,18 @@ func cvtMapToMap(v rt.Value, t rt.Value) error {
 		tType.UnsafeSet(t.Ptr, tType.UnsafeMakeMap(0))
 	}
 	if vType.UnsafeIsNil(v.Ptr) {
+		tType.UnsafeSet(t.Ptr, tType.UnsafeNew())
 		return nil
 	}
 	vKType := vType.Key()
 	tKType := tType.Key()
 	vElemType := vType.Elem()
 	tElemType := tType.Elem()
-	elemConverter, isElemFinalEncoder := LoadConvertFunc(vElemType, tElemType)
-	keyConverter, isKeyFinalEncoder := LoadConvertFunc(vKType, tKType)
 	iter := vType.UnsafeIterate(v.Ptr)
+	keyConverter := LoadConvertFunc(vKType, tKType)
 	for iter.HasNext() {
 		vKey, vElem := iter.UnsafeNext()
-		if !isElemFinalEncoder {
-			elemConverter, isElemFinalEncoder = LoadConvertFunc(vElemType, tElemType)
-		}
-		if !isKeyFinalEncoder {
-			keyConverter, isKeyFinalEncoder = LoadConvertFunc(vKType, tKType)
-		}
+		elemConverter := LoadConvertFunc(vElemType, tElemType)
 		if keyConverter == nil || elemConverter == nil {
 			continue
 		}
@@ -769,9 +831,9 @@ func cvtStructToMap(v rt.Value, t rt.Value) error {
 		fType := f.Type()
 		// 直接使用指针 + 偏移，避免去将指针转换为对象
 		childVPtr := pointerOffset(v.Ptr, f.Offset())
-		name := f.StructField.Name
+		name := f.Name()
 		tElem := tElemType.UnsafeNew()
-		elemConverter, _ := LoadConvertFunc(fType, tElemType)
+		elemConverter := LoadConvertFunc(fType, tElemType)
 		if elemConverter == nil {
 			continue
 		}
@@ -815,7 +877,7 @@ func cvtMapToStruct(v rt.Value, t rt.Value) error {
 			continue
 		}
 		tfType := tf.Type()
-		cvtFunc, _ := LoadConvertFunc(vElemType, tfType)
+		cvtFunc := LoadConvertFunc(vElemType, tfType)
 		if cvtFunc == nil {
 			continue
 		}
@@ -833,70 +895,6 @@ func cvtMapToStruct(v rt.Value, t rt.Value) error {
 	}
 	return nil
 }
-
-// convertOp: []T -> *[N]T
-//func cvtSliceArrayPtr(v, t rt.Value) error {
-//	n := t.Elem().Len()
-//	if n > v.Len() {
-//		panic("reflect: cannot convert slice with length " + itoa.Itoa(v.Len()) + " to pointer to array with length " + itoa.Itoa(n))
-//	}
-//	h := (*unsafeheader.Slice)(v.ptr)
-//	return Value{t.common(), h.Data, v.flag&^(flagIndir|flagAddr|flagKindMask) | flag(Pointer)}
-//}
-
-//
-//// convertOp: []T -> [N]T
-//func cvtSliceArray(v Value, t Type) Value {
-//	n := t.Len()
-//	if n > v.Len() {
-//		panic("reflect: cannot convert slice with length " + itoa.Itoa(v.Len()) + " to array with length " + itoa.Itoa(n))
-//	}
-//	h := (*unsafeheader.Slice)(v.ptr)
-//	typ := t.common()
-//	ptr := h.Data
-//	c := unsafe_New(typ)
-//	typedmemmove(typ, c, ptr)
-//	ptr = c
-//
-//	return Value{typ, ptr, v.flag&^(flagAddr|flagKindMask) | flag(Array)}
-//}
-//
-//// convertOp: direct copy
-//func cvtDirect(v Value, typ Type) Value {
-//	f := v.flag
-//	t := typ.common()
-//	ptr := v.ptr
-//	if f&flagAddr != 0 {
-//		// indirect, mutable word - make a copy
-//		c := unsafe_New(t)
-//		typedmemmove(t, c, ptr)
-//		ptr = c
-//		f &^= flagAddr
-//	}
-//	return Value{t, ptr, v.flag.ro() | f} // v.flag.ro()|f == f?
-//}
-//
-//// convertOp: concrete -> interface
-//func cvtT2I(v Value, typ Type) Value {
-//	target := unsafe_New(typ.common())
-//	x := valueInterface(v, false)
-//	if typ.NumMethod() == 0 {
-//		*(*any)(target) = x
-//	} else {
-//		ifaceE2I(typ.common(), x, target)
-//	}
-//	return Value{typ.common(), target, v.flag.ro() | flagIndir | flag(Interface)}
-//}
-//
-//// convertOp: interface -> interface
-//func cvtI2I(v Value, typ Type) Value {
-//	if v.IsNil() {
-//		ret := Zero(typ)
-//		ret.flag |= v.flag.ro()
-//		return ret
-//	}
-//	return cvtT2I(v.Elem(), typ)
-//}
 
 func pointerOffset(p unsafe.Pointer, offset uintptr) (pOut unsafe.Pointer) {
 	return unsafe.Pointer(uintptr(p) + uintptr(offset))

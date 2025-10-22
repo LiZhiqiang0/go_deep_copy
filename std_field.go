@@ -7,7 +7,6 @@ import (
 	"reflect"
 	"sort"
 	"strings"
-	"unicode"
 )
 
 // A field represents a single field found in a struct.
@@ -55,31 +54,19 @@ type StructDescriptor struct {
 	Fields []*Binding
 }
 
-// GetField get one field from the descriptor by its name.
-// Can not use map here to keep field orders.
-func (structDescriptor *StructDescriptor) GetField(fieldName string) *Binding {
-	for _, binding := range structDescriptor.Fields {
-		if binding.Field.Name() == fieldName {
-			return binding
-		}
-	}
-	return nil
-}
-
 // Binding describe how should we encode/decode the struct field
 type Binding struct {
-	levels    []int
-	Field     *reflect2.UnsafeStructField
-	FromNames []string
-	ToNames   []string
+	levels []int
+	Field  reflect2.StructField
+	Name   string
 }
 
-func describeStruct(typ reflect2.Type) *StructDescriptor {
+func describeStruct(typ reflect2.Type) StructDescriptor {
 	structType := typ.(*reflect2.UnsafeStructType)
 	var embeddedBindings []*Binding
 	var bindings []*Binding
 	for i := 0; i < structType.NumField(); i++ {
-		field := structType.Field(i).(*reflect2.UnsafeStructField)
+		field := structType.Field(i)
 		tag, _ := field.Tag().Lookup("copier")
 		if tag == "-" || field.Name() == "_" {
 			continue
@@ -105,16 +92,17 @@ func describeStruct(typ reflect2.Type) *StructDescriptor {
 				}
 			}
 		}
-		fieldNames := calcFieldNames(field.Name(), tagParts[0], tag)
 		binding := &Binding{
-			Field:     field,
-			FromNames: fieldNames,
-			ToNames:   fieldNames,
+			Field: field,
+			Name:  field.Name(),
+		}
+		if len(tag) > 0 {
+			binding.Name = tag
 		}
 		binding.levels = []int{i}
 		bindings = append(bindings, binding)
 	}
-	return createStructDescriptor(typ, bindings, embeddedBindings)
+	return *createStructDescriptor(typ, bindings, embeddedBindings)
 }
 
 func createStructDescriptor(typ reflect2.Type, bindings []*Binding, embeddedBindings []*Binding) *StructDescriptor {
@@ -151,26 +139,6 @@ func (bindings sortableBindings) Less(i, j int) bool {
 
 func (bindings sortableBindings) Swap(i, j int) {
 	bindings[i], bindings[j] = bindings[j], bindings[i]
-}
-
-func calcFieldNames(originalFieldName string, tagProvidedFieldName string, wholeTag string) []string {
-	// ignore?
-	if wholeTag == "-" {
-		return []string{}
-	}
-	// rename?
-	var fieldNames []string
-	if tagProvidedFieldName == "" {
-		fieldNames = []string{originalFieldName}
-	} else {
-		fieldNames = []string{tagProvidedFieldName}
-	}
-	// private?
-	isNotExported := unicode.IsLower(rune(originalFieldName[0])) || originalFieldName[0] == '_'
-	if isNotExported {
-		fieldNames = []string{}
-	}
-	return fieldNames
 }
 
 func TypeFields(t reflect.Type) structFields {
@@ -364,9 +332,9 @@ func dominantField(fields []field) (field, bool) {
 	return fields[0], true
 }
 
-func loadStructFieldsInfo(vt reflect2.Type) *StructDescriptor {
+func loadStructFieldsInfo(vt reflect2.Type) StructDescriptor {
 	if structInfo, ok := structInfoCache.Get(vt); ok {
-		return structInfo.(*StructDescriptor)
+		return structInfo.(StructDescriptor)
 	}
 	structInfo := describeStruct(vt)
 	// 并发写；无法处理递归
