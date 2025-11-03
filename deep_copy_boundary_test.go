@@ -1,7 +1,7 @@
-package copier_test
+package go_deep_copy_test
 
 import (
-	"copier"
+	"github.com/LiZhiqiang0/go_deep_copy"
 	"testing"
 )
 
@@ -13,7 +13,7 @@ func TestBoundaryConditions(t *testing.T) {
 		source := EmptyStruct{}
 		target := EmptyStruct{}
 
-		err := copier.Copy(&target, &source)
+		err := go_deep_copy.DeepCopy(&source, &target)
 		if err != nil {
 			t.Errorf("Copy empty struct failed: %v", err)
 		}
@@ -41,7 +41,7 @@ func TestBoundaryConditions(t *testing.T) {
 			Ptr:    new(string),
 		}
 
-		err := copier.Copy(&target, &source)
+		err := go_deep_copy.DeepCopy(&source, &target)
 		if err != nil {
 			t.Errorf("Copy zero values failed: %v", err)
 		}
@@ -80,7 +80,7 @@ func TestBoundaryConditions(t *testing.T) {
 		}
 
 		var target []Item
-		err := copier.Copy(&target, &source)
+		err := go_deep_copy.DeepCopy(&source, &target)
 
 		if err != nil {
 			t.Errorf("Copy large slice failed: %v", err)
@@ -116,7 +116,7 @@ func TestBoundaryConditions(t *testing.T) {
 		}
 
 		target := NestedStruct{}
-		err := copier.Copy(&target, &source)
+		err := go_deep_copy.DeepCopy(&source, &target)
 
 		if err != nil {
 			t.Errorf("Copy nested slices failed: %v", err)
@@ -157,9 +157,9 @@ func TestAdvancedErrorCases(t *testing.T) {
 		}
 
 		target := Target{}
-		err := copier.Copy(&target, &source)
+		err := go_deep_copy.DeepCopy(&source, &target)
 
-		// 有些版本的copier会尝试进行类型转换，所以这里不强制要求错误
+		// 有些版本的go_deep_copy会尝试进行类型转换，所以这里不强制要求错误
 		if err != nil {
 			t.Logf("Incompatible types handled with error: %v", err)
 		} else {
@@ -199,7 +199,7 @@ func TestPerformance(t *testing.T) {
 	// 执行多次拷贝测试性能
 	for i := 0; i < 1000; i++ {
 		target := LargeStruct{}
-		err := copier.Copy(&target, &source)
+		err := go_deep_copy.DeepCopy(&source, &target)
 		if err != nil {
 			t.Errorf("Copy failed at iteration %d: %v", i, err)
 			break
@@ -221,7 +221,7 @@ func TestConcurrentCopy(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		go func(id int) {
 			target := Data{}
-			err := copier.Copy(&target, &source)
+			err := go_deep_copy.DeepCopy(&source, &target)
 			if err != nil {
 				t.Errorf("Concurrent copy failed for goroutine %d: %v", id, err)
 			}

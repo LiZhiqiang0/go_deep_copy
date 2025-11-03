@@ -1,40 +1,29 @@
-package copier_test
+package go_deep_copy_test
 
 import (
-	"copier"
 	"encoding/json"
-	c1 "github.com/jinzhu/copier"
+	"github.com/LiZhiqiang0/go_deep_copy"
+	"github.com/jinzhu/copier"
 	"testing"
 )
 
 func BenchmarkCopyStruct(b *testing.B) {
 	var fakeAge int32 = 12
 	user := User{Name: "Jinzhu", NickName: "jinzhu", Age: 18, FakeAge: &fakeAge, Role: "Admin", Notes: []string{"hello world", "welcome"}, Flags: []byte{'x'}}
-	//user := map[string]interface{}{
-	//	"Name":     "Jinzhu",
-	//	"NickName": "jinzhu",
-	//	"Age":      18,
-	//	"FakeAge":  &fakeAge,
-	//	"Role":     "Admin",
-	//	"Notes":    []string{"hello world", "welcome"},
-	//	"Flags":    []byte{'x'},
-	//}
 	runs := []struct {
 		name string
 		f    func()
 	}{
-		{"std",
+		{"copier",
 			func() {
 				a := User{}
-				c1.CopyWithOption(&a, &user, c1.Option{DeepCopy: true})
-				// println(a)
+				copier.CopyWithOption(&a, &user, copier.Option{DeepCopy: true})
 			},
 		},
-		{"my",
+		{"go_deep_copy",
 			func() {
 				a := User{}
-				copier.Copy(&a, &user)
-				//fmt.Println(a)
+				go_deep_copy.DeepCopy(&user, &a)
 			},
 		},
 		{"json",
@@ -42,7 +31,6 @@ func BenchmarkCopyStruct(b *testing.B) {
 				data, _ := json.Marshal(user)
 				a := User{}
 				json.Unmarshal(data, &a)
-				// println(a)
 			},
 		},
 	}

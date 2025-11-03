@@ -1,4 +1,4 @@
-module copier
+module github.com/LiZhiqiang0/go_deep_copy
 
 go 1.18
 

@@ -1,7 +1,7 @@
-package copier
+package go_deep_copy
 
 import (
-	"copier/rt"
+	"github.com/LiZhiqiang0/go_deep_copy/rt"
 	"github.com/modern-go/reflect2"
 	"reflect"
 	"strconv"
@@ -117,7 +117,7 @@ func convertOp(v, t reflect2.Type) func(v, t rt.Value) error {
 		case reflect.Float32:
 			return cvtFloat
 		case reflect.Bool:
-			return cvtIntBool
+			return cvtFloatBool
 		case reflect.Interface:
 			return cvtTToI
 		}
@@ -218,6 +218,19 @@ func convertOp(v, t reflect2.Type) func(v, t rt.Value) error {
 		return cvtTToPtr
 	}
 	return nil
+}
+
+func aggKind(kind reflect.Kind) reflect.Kind {
+	switch {
+	case kind >= reflect.Int && kind <= reflect.Int64:
+		return reflect.Int
+	case kind >= reflect.Uint && kind <= reflect.Uintptr:
+		return reflect.Uint
+	case kind >= reflect.Float32 && kind <= reflect.Float64:
+		return reflect.Float32
+	default:
+		return kind
+	}
 }
 
 func getKind(val reflect2.Type) reflect.Kind {

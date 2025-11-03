@@ -1,4 +1,4 @@
-package copier
+package go_deep_copy
 
 import (
 	"github.com/modern-go/reflect2"

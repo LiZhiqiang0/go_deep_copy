@@ -1,4 +1,4 @@
-package copier
+package go_deep_copy
 
 import (
 	"strings"

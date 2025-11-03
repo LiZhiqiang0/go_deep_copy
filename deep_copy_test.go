@@ -1,13 +1,13 @@
-package copier_test
+package go_deep_copy_test
 
 import (
-	"copier"
+	"github.com/LiZhiqiang0/go_deep_copy"
 	"testing"
+	"time"
 )
 
 type User struct {
-	Name string
-	//Birthday *time.Time
+	Name     string
 	NickName string
 	Role     string
 	Age      int32
@@ -57,7 +57,7 @@ func TestStructToMap(t *testing.T) {
 		person := Person{Name: "张三", Age: 25, City: "北京"}
 		var result map[string]interface{}
 
-		err := copier.Copy(&result, &person)
+		err := go_deep_copy.DeepCopy(&person, &result)
 		if err != nil {
 			t.Errorf("结构体转map失败: %v", err)
 		}
@@ -84,7 +84,7 @@ func TestStructToMap(t *testing.T) {
 		product := Product{Name: "手机", Price: &price, Stock: 100}
 		var result map[string]interface{}
 
-		err := copier.Copy(&result, &product)
+		err := go_deep_copy.DeepCopy(&product, &result)
 		if err != nil {
 			t.Errorf("结构体(含指针)转map失败: %v", err)
 		}
@@ -122,7 +122,7 @@ func TestStructToMap(t *testing.T) {
 		}
 		var result map[string]interface{}
 
-		err := copier.Copy(&result, &student)
+		err := go_deep_copy.DeepCopy(&student, &result)
 		if err != nil {
 			t.Errorf("嵌套结构体转map失败: %v", err)
 		}
@@ -162,7 +162,7 @@ func TestStructToMapOnly(t *testing.T) {
 		}
 
 		var result map[string]interface{}
-		err := copier.Copy(&result, &developer)
+		err := go_deep_copy.DeepCopy(&developer, &result)
 		if err != nil {
 			t.Errorf("结构体(含切片)转map失败: %v", err)
 		}
@@ -195,7 +195,7 @@ func TestStructToMapOnly(t *testing.T) {
 		}
 
 		var result map[string]interface{}
-		err := copier.Copy(&result, &config)
+		err := go_deep_copy.DeepCopy(&config, &result)
 		if err != nil {
 			t.Errorf("结构体(含map字段)转map失败: %v", err)
 		}
@@ -222,7 +222,7 @@ func TestBasicCopy(t *testing.T) {
 		}
 
 		employee := Employee{}
-		err := copier.Copy(&employee, &user)
+		err := go_deep_copy.DeepCopy(&user, &employee)
 
 		if err != nil {
 			t.Errorf("Copy failed: %v", err)
@@ -246,7 +246,7 @@ func TestBasicCopy(t *testing.T) {
 		}
 
 		var employees []Employee
-		err := copier.Copy(&employees, &users)
+		err := go_deep_copy.DeepCopy(&users, &employees)
 
 		if err != nil {
 			t.Errorf("Copy failed: %v", err)
@@ -276,7 +276,7 @@ func TestCopyWithPointer(t *testing.T) {
 	}
 
 	employee := Employee{}
-	err := copier.Copy(&employee, &user)
+	err := go_deep_copy.DeepCopy(&user, &employee)
 
 	if err != nil {
 		t.Errorf("Copy failed: %v", err)
@@ -298,7 +298,7 @@ func TestCopyWithNestedStruct(t *testing.T) {
 	}
 
 	employee := Employee{}
-	err := copier.Copy(&employee, &user)
+	err := go_deep_copy.DeepCopy(&user, &employee)
 
 	if err != nil {
 		t.Errorf("Copy failed: %v", err)
@@ -330,8 +330,8 @@ func TestCopyWithTags(t *testing.T) {
 
 	type TargetWithTags struct {
 		Name     string
-		Secret   string `copier:"-"`
-		TargetID int    `copier:"ID"`
+		Secret   string `go_deep_copy:"-"`
+		TargetID int    `go_deep_copy:"ID"`
 	}
 
 	source := SourceWithTags{
@@ -342,7 +342,7 @@ func TestCopyWithTags(t *testing.T) {
 
 	target := TargetWithTags{}
 
-	err := copier.Copy(&target, &source)
+	err := go_deep_copy.DeepCopy(&source, &target)
 
 	if err != nil {
 		t.Errorf("Copy failed: %v", err)
@@ -379,7 +379,7 @@ func TestCopyWithOption(t *testing.T) {
 		Empty: "NotEmpty",
 	}
 
-	err := copier.Copy(&target, &source)
+	err := go_deep_copy.DeepCopy(&source, &target)
 
 	if err != nil {
 		t.Errorf("Copy failed: %v", err)
@@ -394,7 +394,7 @@ func TestCopyWithOption(t *testing.T) {
 func TestCopyErrorCases(t *testing.T) {
 	t.Run("nil destination", func(t *testing.T) {
 		source := User{Name: "John"}
-		err := copier.Copy(nil, &source)
+		err := go_deep_copy.DeepCopy(&source, nil)
 
 		if err == nil {
 			t.Error("Expected error when destination is nil")
@@ -403,7 +403,7 @@ func TestCopyErrorCases(t *testing.T) {
 
 	t.Run("nil source", func(t *testing.T) {
 		employee := Employee{}
-		err := copier.Copy(&employee, nil)
+		err := go_deep_copy.DeepCopy(nil, &employee)
 
 		if err == nil {
 			t.Error("Expected error when source is nil")
@@ -413,7 +413,7 @@ func TestCopyErrorCases(t *testing.T) {
 	t.Run("non-pointer destination", func(t *testing.T) {
 		source := User{Name: "John"}
 		employee := Employee{}
-		err := copier.Copy(employee, &source)
+		err := go_deep_copy.DeepCopy(&source, employee)
 
 		if err == nil {
 			t.Error("Expected error when destination is not a pointer")
@@ -430,7 +430,7 @@ func TestCopyMap(t *testing.T) {
 	}
 
 	var target map[string]int64
-	err := copier.Copy(&target, &source)
+	err := go_deep_copy.DeepCopy(&source, &target)
 
 	if err != nil {
 		t.Errorf("Copy failed: %v", err)
@@ -460,7 +460,7 @@ func TestCopyDifferentTypes(t *testing.T) {
 	source := IntStruct{Value: 42}
 	target := StringStruct{}
 
-	err := copier.Copy(&target, &source)
+	err := go_deep_copy.DeepCopy(&source, &target)
 
 	if err != nil {
 		t.Errorf("Copy failed: %v", err)
@@ -482,7 +482,7 @@ func TestDeepCopy(t *testing.T) {
 	}
 
 	var target User
-	err := copier.CopyWithOption(&target, &source, copier.Option{DeepCopy: true})
+	err := go_deep_copy.DeepCopy(&source, &target)
 
 	if err != nil {
 		t.Errorf("Copy failed: %v", err)
@@ -517,7 +517,7 @@ func TestMapToStruct(t *testing.T) {
 		}
 
 		var target Person
-		err := copier.Copy(&target, &source)
+		err := go_deep_copy.DeepCopy(&source, &target)
 		if err != nil {
 			t.Errorf("Map转结构体失败: %v", err)
 		}
@@ -547,7 +547,7 @@ func TestMapToStruct(t *testing.T) {
 		}
 
 		var target Product
-		err := copier.Copy(&target, &source)
+		err := go_deep_copy.DeepCopy(&source, &target)
 		if err != nil {
 			t.Errorf("Map转结构体(类型转换)失败: %v", err)
 		}
@@ -577,7 +577,7 @@ func TestMapToStruct(t *testing.T) {
 		}
 
 		var target Employee
-		err := copier.Copy(&target, &source)
+		err := go_deep_copy.DeepCopy(&source, &target)
 		if err != nil {
 			t.Errorf("Map转结构体(缺失字段)失败: %v", err)
 		}
@@ -610,7 +610,7 @@ func TestMapToStruct(t *testing.T) {
 		}
 
 		var target Config
-		err := copier.Copy(&target, &source)
+		err := go_deep_copy.DeepCopy(&source, &target)
 		if err != nil {
 			t.Errorf("Map转结构体(不同key类型)失败: %v", err)
 		}
@@ -653,7 +653,7 @@ func TestMapToStructWithNested(t *testing.T) {
 		}
 
 		var result map[string]interface{}
-		err := copier.Copy(&result, &person)
+		err := go_deep_copy.DeepCopy(&person, &result)
 		if err != nil {
 			t.Errorf("嵌套结构体转map失败: %v", err)
 		}
@@ -696,7 +696,7 @@ func TestMapToStructWithNested(t *testing.T) {
 		}
 
 		var target Person
-		err := copier.Copy(&target, &source)
+		err := go_deep_copy.DeepCopy(&source, &target)
 		if err != nil {
 			t.Errorf("Map转嵌套结构体失败: %v", err)
 		}
@@ -751,7 +751,7 @@ func TestComplexMapStructConversion(t *testing.T) {
 		}
 
 		var result map[string]interface{}
-		err := copier.Copy(&result, &employee)
+		err := go_deep_copy.DeepCopy(&employee, &result)
 		if err != nil {
 			t.Errorf("复杂结构体转map失败: %v", err)
 		}
@@ -802,7 +802,7 @@ func TestComplexMapStructConversion(t *testing.T) {
 		}
 
 		var target Company
-		err := copier.Copy(&target, &source)
+		err := go_deep_copy.DeepCopy(&source, &target)
 		if err != nil {
 			t.Errorf("复杂map转结构体失败: %v", err)
 		}
@@ -815,6 +815,219 @@ func TestComplexMapStructConversion(t *testing.T) {
 		}
 		if target.Department.Code != 1001 {
 			t.Errorf("Department.Code字段转换错误，期望: 1001，实际: %d", target.Department.Code)
+		}
+	})
+}
+
+// TestTimeCopy 测试time.Time类型的拷贝
+func TestTimeCopy(t *testing.T) {
+	t.Run("basic time.Time copy", func(t *testing.T) {
+		type Event struct {
+			Name      string
+			StartTime time.Time
+			EndTime   time.Time
+		}
+
+		now := time.Now()
+		event1 := Event{
+			Name:      "会议",
+			StartTime: now,
+			EndTime:   now.Add(time.Hour),
+		}
+
+		var event2 Event
+		err := go_deep_copy.DeepCopy(&event1, &event2)
+		if err != nil {
+			t.Errorf("Time拷贝失败: %v", err)
+		}
+
+		if event2.Name != event1.Name {
+			t.Errorf("Name字段不匹配，期望: %s，实际: %s", event1.Name, event2.Name)
+		}
+		if !event2.StartTime.Equal(event1.StartTime) {
+			t.Errorf("StartTime不匹配，期望: %v，实际: %v", event1.StartTime, event2.StartTime)
+		}
+		if !event2.EndTime.Equal(event1.EndTime) {
+			t.Errorf("EndTime不匹配，期望: %v，实际: %v", event1.EndTime, event2.EndTime)
+		}
+	})
+
+	t.Run("time.Time pointer copy", func(t *testing.T) {
+		type Task struct {
+			Name      string
+			CreatedAt *time.Time
+			UpdatedAt *time.Time
+		}
+
+		now := time.Now()
+		task1 := Task{
+			Name:      "任务",
+			CreatedAt: &now,
+			UpdatedAt: nil,
+		}
+
+		var task2 Task
+		err := go_deep_copy.DeepCopy(&task1, &task2)
+		if err != nil {
+			t.Errorf("Time指针拷贝失败: %v", err)
+		}
+
+		if task2.Name != task1.Name {
+			t.Errorf("Name字段不匹配，期望: %s，实际: %s", task1.Name, task2.Name)
+		}
+		if task2.CreatedAt == nil {
+			t.Error("CreatedAt指针为nil")
+		} else if !task2.CreatedAt.Equal(*task1.CreatedAt) {
+			t.Errorf("CreatedTime不匹配，期望: %v，实际: %v", *task1.CreatedAt, *task2.CreatedAt)
+		}
+		if task2.UpdatedAt != nil {
+			t.Error("UpdatedAt应该是nil")
+		}
+	})
+
+	t.Run("time.Time slice copy", func(t *testing.T) {
+		type Schedule struct {
+			Name     string
+			TimeList []time.Time
+		}
+
+		now := time.Now()
+		schedule1 := Schedule{
+			Name: "日程安排",
+			TimeList: []time.Time{
+				now,
+				now.Add(time.Hour),
+				now.Add(2 * time.Hour),
+			},
+		}
+
+		var schedule2 Schedule
+		err := go_deep_copy.DeepCopy(&schedule1, &schedule2)
+		if err != nil {
+			t.Errorf("Time切片拷贝失败: %v", err)
+		}
+
+		if len(schedule2.TimeList) != len(schedule1.TimeList) {
+			t.Errorf("TimeList长度不匹配，期望: %d，实际: %d", len(schedule1.TimeList), len(schedule2.TimeList))
+		}
+		for i, timeVal := range schedule1.TimeList {
+			if !schedule2.TimeList[i].Equal(timeVal) {
+				t.Errorf("TimeList[%d]不匹配，期望: %v，实际: %v", i, timeVal, schedule2.TimeList[i])
+			}
+		}
+	})
+
+	t.Run("time.Time map copy", func(t *testing.T) {
+		type LogEntry struct {
+			Timestamp time.Time
+			Message   string
+		}
+
+		now := time.Now()
+		logMap1 := map[string]LogEntry{
+			"error": {
+				Timestamp: now,
+				Message:   "错误日志",
+			},
+			"info": {
+				Timestamp: now.Add(time.Minute),
+				Message:   "信息日志",
+			},
+		}
+
+		var logMap2 map[string]LogEntry
+		err := go_deep_copy.DeepCopy(&logMap1, &logMap2)
+		if err != nil {
+			t.Errorf("Time map拷贝失败: %v", err)
+		}
+
+		if len(logMap2) != len(logMap1) {
+			t.Errorf("Map长度不匹配，期望: %d，实际: %d", len(logMap1), len(logMap2))
+		}
+		for key, entry := range logMap1 {
+			if copiedEntry, ok := logMap2[key]; !ok {
+				t.Errorf("Map key %s 不存在", key)
+			} else {
+				if copiedEntry.Message != entry.Message {
+					t.Errorf("Message不匹配，期望: %s，实际: %s", entry.Message, copiedEntry.Message)
+				}
+				if !copiedEntry.Timestamp.Equal(entry.Timestamp) {
+					t.Errorf("Timestamp不匹配，期望: %v，实际: %v", entry.Timestamp, copiedEntry.Timestamp)
+				}
+			}
+		}
+	})
+
+	t.Run("time.Time nested struct copy", func(t *testing.T) {
+		type User struct {
+			Name      string
+			Birthday  time.Time
+			CreatedAt *time.Time
+		}
+
+		type UserDTO struct {
+			Name      string
+			Birthday  time.Time
+			CreatedAt *time.Time
+		}
+
+		now := time.Now()
+		createdAt := now.Add(-time.Hour)
+		user := User{
+			Name:      "张三",
+			Birthday:  time.Date(1990, 1, 1, 0, 0, 0, 0, time.UTC),
+			CreatedAt: &createdAt,
+		}
+
+		var userDTO UserDTO
+		err := go_deep_copy.DeepCopy(&user, &userDTO)
+		if err != nil {
+			t.Errorf("嵌套Time拷贝失败: %v", err)
+		}
+
+		if userDTO.Name != user.Name {
+			t.Errorf("Name不匹配，期望: %s，实际: %s", user.Name, userDTO.Name)
+		}
+		if !userDTO.Birthday.Equal(user.Birthday) {
+			t.Errorf("Birthday不匹配，期望: %v，实际: %v", user.Birthday, userDTO.Birthday)
+		}
+		if userDTO.CreatedAt == nil {
+			t.Error("CreatedAt为nil")
+		} else if !userDTO.CreatedAt.Equal(*user.CreatedAt) {
+			t.Errorf("CreatedAt不匹配，期望: %v，实际: %v", *user.CreatedAt, *userDTO.CreatedAt)
+		}
+	})
+
+	t.Run("time.Time with map to struct", func(t *testing.T) {
+		type Order struct {
+			ID        int
+			OrderTime time.Time
+			PayTime   *time.Time
+		}
+
+		now := time.Now()
+		orderMap := map[string]interface{}{
+			"ID":        int64(1001),
+			"OrderTime": now,
+			"PayTime":   &now,
+		}
+
+		var order Order
+		err := go_deep_copy.DeepCopy(&orderMap, &order)
+		if err != nil {
+			t.Errorf("Map到结构体Time拷贝失败: %v", err)
+		}
+
+		if order.ID != 1001 {
+			t.Errorf("ID不匹配，期望: %d，实际: %d", 1001, order.ID)
+		}
+		if !order.OrderTime.Equal(now) {
+			t.Errorf("OrderTime不匹配，期望: %v，实际: %v", now, order.OrderTime)
+		}
+		if order.PayTime == nil {
+			t.Error("PayTime为nil")
+		} else if !order.PayTime.Equal(now) {
+			t.Errorf("PayTime不匹配，期望: %v，实际: %v", now, *order.PayTime)
 		}
 	})
 }

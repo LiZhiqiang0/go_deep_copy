@@ -1,4 +1,4 @@
-package copier
+package go_deep_copy
 
 import (
 	"bytes"
@@ -67,7 +67,7 @@ func describeStruct(typ reflect2.Type) StructDescriptor {
 	var bindings []*Binding
 	for i := 0; i < structType.NumField(); i++ {
 		field := structType.Field(i)
-		tag, _ := field.Tag().Lookup("copier")
+		tag, _ := field.Tag().Lookup("go_deep_copy")
 		if tag == "-" || field.Name() == "_" {
 			continue
 		}

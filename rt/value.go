@@ -68,6 +68,23 @@ func (v Value) SetInt(x int64) {
 	}
 }
 
+// SetInt sets v's underlying value to x.
+// It panics if v's Kind is not [Int], [Int8], [Int16], [Int32], or [Int64], or if [Value.CanSet] returns false.
+func (v Value) SetIntFromKind(x int64, k reflect.Kind) {
+	switch k {
+	case reflect.Int:
+		*(*int)(v.Ptr) = int(x)
+	case reflect.Int8:
+		*(*int8)(v.Ptr) = int8(x)
+	case reflect.Int16:
+		*(*int16)(v.Ptr) = int16(x)
+	case reflect.Int32:
+		*(*int32)(v.Ptr) = int32(x)
+	case reflect.Int64:
+		*(*int64)(v.Ptr) = x
+	}
+}
+
 // SetUint sets v's underlying value to x.
 // It panics if v's Kind is not [Uint], [Uintptr], [Uint8], [Uint16], [Uint32], or [Uint64], or if [Value.CanSet] returns false.
 func (v Value) SetUint(x uint64) {
