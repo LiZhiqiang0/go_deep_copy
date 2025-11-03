@@ -26,7 +26,7 @@ Go Deep Copy 是一个高性能的 Go 语言深拷贝库，专注于结构体、
 ### 安装
 
 ```bash
-go get -u github.com/LiZhiqiang0/go_deepcopy
+go get -u github.com/LiZhiqiang0/go_deep_copy
 ```
 
 ### 基本使用
@@ -36,7 +36,7 @@ package main
 
 import (
     "fmt"
-    "github.com/LiZhiqiang0/go_deepcopy"
+    "github.com/LiZhiqiang0/go_deep_copy"
 )
 
 type User struct {
@@ -56,7 +56,7 @@ func main() {
     user := User{Name: "张三", Age: 30, Email: "zhangsan@example.com"}
     var employee Employee
     
-    err := go_deepcopy.DeepCopy(&user, &employee)
+    err := go_deep_copy.DeepCopy(&user, &employee)
     if err != nil {
         panic(err)
     }
@@ -75,7 +75,7 @@ package main
 
 import (
     "fmt"
-    "github.com/LiZhiqiang0/go_deepcopy"
+    "github.com/LiZhiqiang0/go_deep_copy"
 )
 
 type Address struct {
@@ -100,7 +100,7 @@ func main() {
     }
     
     var person2 Person
-    err := go_deepcopy.DeepCopy(person1, &person2)
+    err := go_deep_copy.DeepCopy(person1, &person2)
     if err != nil {
         panic(err)
     }
@@ -119,7 +119,7 @@ package main
 
 import (
     "fmt"
-    "github.com/LiZhiqiang0/go_deepcopy"
+    "github.com/LiZhiqiang0/go_deep_copy"
 )
 
 type User struct {
@@ -137,7 +137,7 @@ func main() {
     }
 
     var user User
-    err := go_deepcopy.DeepCopy(&mapData, &user)
+    err := go_deep_copy.DeepCopy(&mapData, &user)
     if err != nil {
         panic(err)
     }
@@ -145,7 +145,7 @@ func main() {
 
     // 结构体到 Map
     var result map[string]interface{}
-    err = go_deepcopy.DeepCopy(&user, &result)
+    err = go_deep_copy.DeepCopy(&user, &result)
     if err != nil {
         panic(err)
     }
@@ -160,7 +160,7 @@ package main
 
 import (
     "fmt"
-    "github.com/LiZhiqiang0/go_deepcopy"
+    "github.com/LiZhiqiang0/go_deep_copy"
 )
 
 type Product struct {
@@ -176,7 +176,7 @@ func main() {
     }
     
     var products2 []Product
-    err := go_deepcopy.DeepCopy(&products1, &products2)
+    err := go_deep_copy.DeepCopy(&products1, &products2)
     if err != nil {
         panic(err)
     }
@@ -197,7 +197,7 @@ package main
 
 import (
     "fmt"
-    "github.com/LiZhiqiang0/go_deepcopy"
+    "github.com/LiZhiqiang0/go_deep_copy"
 )
 
 type Source struct {
@@ -216,7 +216,7 @@ func main() {
     source := Source{Name: "测试", Secret: "机密", ID: 1001}
     var target Target
     
-    err := go_deepcopy.DeepCopy(&source, &target)
+    err := go_deep_copy.DeepCopy(&source, &target)
     if err != nil {
         panic(err)
     }
