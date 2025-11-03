@@ -244,61 +244,6 @@ BenchmarkCopyStruct/json-10              597748     1958 ns/op    776 B/op    19
 
 可以看到，本库在性能上相比copier库、json 序列化方式有显著提升，内存分配也更少。
 
-## 🔧 错误处理
-
-Go Deep Copy 提供详细的错误信息，帮助开发者快速定位问题：
-
-### 基本错误处理
-```go
-package main
-
-import (
-    "fmt"
-    "github.com/LiZhiqiang0/go_deepcopy"
-)
-
-func main() {
-    source := map[string]interface{}{
-        "name": "张三",
-        "age":  25,
-    }
-    
-    type User struct {
-        Name string
-        Age  int
-    }
-    
-    var user User
-    err := go_deepcopy.DeepCopy(&source, &user)
-    if err != nil {
-        fmt.Printf("深拷贝失败: %v\n", err)
-        return
-    }
-    
-    fmt.Printf("拷贝成功: %+v\n", user)
-}
-```
-
-### 常见错误场景
-```go
-// 1. 目标对象为 nil
-var target *User
-err := go_deepcopy.DeepCopy(&source, target) // 错误：目标对象为 nil
-
-// 2. 源对象为 nil
-source := (*User)(nil)
-err := go_deepcopy.DeepCopy(source, &target) // 错误：源对象为 nil
-
-// 3. 目标对象不是指针
-target := User{}
-err := go_deepcopy.DeepCopy(&source, target) // 错误：目标对象必须是指针
-
-// 4. 不支持的类型转换
-type ComplexStruct struct {
-    Data chan int // channel 类型不支持深拷贝
-}
-```
-
 ## 📋 支持类型
 
 ### 基本类型
