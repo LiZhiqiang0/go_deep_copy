@@ -14,7 +14,7 @@ type Book struct {
 	Titles  []string
 	Price   float64
 	Prices  []float64
-	Hot     bool
+	hot     bool
 	Hots    []bool
 	Author  Author
 	Authors []Author
@@ -34,7 +34,7 @@ var book = Book{
 	Titles:  []string{"hello", "world"},
 	Price:   40.8,
 	Prices:  []float64{-0.1, 0.1},
-	Hot:     true,
+	hot:     true,
 	Hots:    []bool{true, true, true},
 	Author:  author,
 	Authors: []Author{author, author, author},

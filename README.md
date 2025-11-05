@@ -237,9 +237,9 @@ func main() {
 以下是本库与copier库、json 序列化方式的性能对比：
 
 ```
-BenchmarkCopyStruct/copier-10            244434     4784 ns/op    1272 B/op   60 allocs/op
-BenchmarkCopyStruct/go_deep_copy-10      945814     1270 ns/op    240 B/op     8 allocs/op  
-BenchmarkCopyStruct/json-10              597748     1958 ns/op    776 B/op    19 allocs/op
+BenchmarkCopyStruct/copier-10             850699             14030 ns/op            4248 B/op        178 allocs/op
+BenchmarkCopyStruct/go_deep_copy-10      3918260              3010 ns/op             672 B/op         18 allocs/op
+BenchmarkCopyStruct/json-10              2142386              5604 ns/op            1641 B/op         37 allocs/o
 ```
 
 可以看到，本库在性能上相比copier库、json 序列化方式有显著提升，内存分配也更少。

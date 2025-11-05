@@ -52,11 +52,3 @@ func indirect(reflectValue reflect.Value) reflect.Value {
 	}
 	return reflectValue
 }
-
-func indirectType(reflectType reflect.Type) (_ reflect.Type, isPtr bool) {
-	for reflectType.Kind() == reflect.Ptr {
-		reflectType = reflectType.Elem()
-		isPtr = true
-	}
-	return reflectType, isPtr
-}

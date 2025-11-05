@@ -9,14 +9,14 @@ import (
 	"unsafe"
 )
 
-var mFuncMap sync.Map
+var mFuncMap *MapRCU
 
 // 缓存结构体信息
-var structInfoCache *RCU
+var structInfoCache *LinerRCU
 
 func init() {
-	mFuncMap = sync.Map{}
-	structInfoCache = NewRCU()
+	mFuncMap = NewMapRCU()
+	structInfoCache = NewLinerRCU()
 }
 
 type rcuCacheInfo struct {
@@ -44,13 +44,16 @@ func LoadConvertFunc(v, t reflect2.Type) ConvertFunc {
 	if loaded {
 		return fi.(rcuCacheInfo).ConvertFunc
 	}
-	// Compute the real encoder and replace the indirect func with it.
 	f = convertOp(v, t)
 	wrapFunc := ConvertFunc(func(v rt.Value, t rt.Value) error {
 		if f == nil {
 			return ErrNotSupported
 		}
 		if v.Typ.UnsafeIsNil(v.Ptr) {
+			if t.Typ.Kind() == reflect.Ptr {
+				*((*unsafe.Pointer)(t.Ptr)) = nil
+				return nil
+			}
 			t.Typ.UnsafeSet(t.Ptr, t.Typ.UnsafeNew())
 			return nil
 		}
@@ -690,6 +693,10 @@ func cvtIToI(v rt.Value, t rt.Value) error {
 }
 
 func cvtTToPtr(v rt.Value, t rt.Value) error {
+	if v.Typ.Kind() == reflect.Ptr && *((*unsafe.Pointer)(v.Ptr)) == nil {
+		*((*unsafe.Pointer)(t.Ptr)) = nil
+		return nil
+	}
 	t.Typ = t.Typ.(*reflect2.UnsafePtrType).Elem()
 	cvtFunc := LoadConvertFunc(v.Typ, t.Typ)
 	newPtr := t.Typ.UnsafeNew()
@@ -711,6 +718,10 @@ func cvtPtrToT(v rt.Value, t rt.Value) error {
 		return nil
 	}
 	if *((*unsafe.Pointer)(v.Ptr)) == nil {
+		if t.Typ.Kind() == reflect.Ptr {
+			*((*unsafe.Pointer)(t.Ptr)) = nil
+			return nil
+		}
 		t.Typ.UnsafeSet(t.Ptr, t.Typ.UnsafeNew())
 		return nil
 	} else {
@@ -730,10 +741,7 @@ func cvtPtrToT(v rt.Value, t rt.Value) error {
 func cvtStructToStruct(v rt.Value, t rt.Value) error {
 	vInfo := loadStructFieldsInfo(v.Typ)
 	tInfo := loadStructFieldsInfo(t.Typ)
-	tFieldMap := make(map[string]*Binding, len(tInfo.Fields))
-	for i := 0; i < len(tInfo.Fields); i++ {
-		tFieldMap[tInfo.Fields[i].Name] = tInfo.Fields[i]
-	}
+	tFieldMap := tInfo.FieldMap
 	vPtr := v.Ptr
 	tPtr := t.Ptr
 	for i := 0; i < len(vInfo.Fields); i++ {
@@ -869,10 +877,7 @@ func cvtMapToStruct(v rt.Value, t rt.Value) error {
 		return nil
 	}
 	tInfo := loadStructFieldsInfo(t.Typ)
-	tFieldMap := make(map[string]reflect2.StructField, len(tInfo.Fields))
-	for i := 0; i < len(tInfo.Fields); i++ {
-		tFieldMap[tInfo.Fields[i].Field.Name()] = tInfo.Fields[i].Field
-	}
+	tFieldMap := tInfo.FieldMap
 	vElemType := vType.Elem()
 	iter := vType.UnsafeIterate(v.Ptr)
 	for iter.HasNext() {
@@ -882,12 +887,12 @@ func cvtMapToStruct(v rt.Value, t rt.Value) error {
 		if !ok {
 			continue
 		}
-		tfType := tf.Type()
+		tfType := tf.Field.Type()
 		cvtFunc := LoadConvertFunc(vElemType, tfType)
 		if cvtFunc == nil {
 			continue
 		}
-		childTPtr := pointerOffset(t.Ptr, tf.Offset())
+		childTPtr := pointerOffset(t.Ptr, tf.Field.Offset())
 		err := cvtFunc(rt.Value{
 			Ptr: vElem,
 			Typ: vElemType,
