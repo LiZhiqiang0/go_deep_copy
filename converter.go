@@ -76,8 +76,7 @@ func convertOp(v, t reflect2.Type) func(v, t rt.Value) error {
 			return cvtIntString
 		case reflect.Bool:
 			return cvtIntBool
-		case reflect.Interface:
-			return cvtTToI
+
 		}
 	case reflect.Bool:
 		switch tKind {
@@ -91,8 +90,7 @@ func convertOp(v, t reflect2.Type) func(v, t rt.Value) error {
 			return cvtBoolString
 		case reflect.Bool:
 			return cvtBool
-		case reflect.Interface:
-			return cvtTToI
+
 		}
 	case reflect.Uint:
 		switch tKind {
@@ -104,8 +102,7 @@ func convertOp(v, t reflect2.Type) func(v, t rt.Value) error {
 			return cvtUintString
 		case reflect.Bool:
 			return cvtIntBool
-		case reflect.Interface:
-			return cvtTToI
+
 		}
 
 	case reflect.Float32:
@@ -118,27 +115,19 @@ func convertOp(v, t reflect2.Type) func(v, t rt.Value) error {
 			return cvtFloat
 		case reflect.Bool:
 			return cvtFloatBool
-		case reflect.Interface:
-			return cvtTToI
+
 		}
 
 	case reflect.Complex64, reflect.Complex128:
 		switch tKind {
 		case reflect.Complex64, reflect.Complex128:
 			return cvtComplex
-		case reflect.Interface:
-			return cvtTToI
 		}
 
 	case reflect.String:
 		switch tKind {
 		case reflect.Slice:
-			switch t.(reflect2.SliceType).Elem().Kind() {
-			case reflect.Uint8:
-				return cvtStringBytes
-			case reflect.Int32:
-				return cvtStringRunes
-			}
+			return cvtStringSlice
 		case reflect.String:
 			return cvtString
 		case reflect.Int:
@@ -148,26 +137,19 @@ func convertOp(v, t reflect2.Type) func(v, t rt.Value) error {
 		case reflect.Float32:
 			return cvtStringFloat
 		case reflect.Bool:
-			return cvtIntBool
-		case reflect.Interface:
-			return cvtTToI
+			return cvtStringBool
+
 		}
 
 	case reflect.Slice:
 		switch tKind {
 		case reflect.String:
-			switch v.(reflect2.SliceType).Elem().Kind() {
-			case reflect.Uint8:
-				return cvtBytesString
-			case reflect.Int32:
-				return cvtRunesString
-			}
+			return cvtSliceToString
 		case reflect.Slice:
 			return cvtSliceToSlice
 		case reflect.Array:
 			return cvtSliceToArray
-		case reflect.Interface:
-			return cvtTToI
+
 		}
 
 	case reflect.Array:
@@ -176,15 +158,13 @@ func convertOp(v, t reflect2.Type) func(v, t rt.Value) error {
 			return cvtArrayToSlice
 		case reflect.Array:
 			return cvtArray
-		case reflect.Interface:
-			return cvtTToI
+
 		}
 	case reflect.Struct:
 		switch tKind {
 		case reflect.Struct:
 			return cvtStructToStruct
-		case reflect.Interface:
-			return cvtTToI
+
 		case reflect.Map:
 			return cvtStructToMap
 		}
@@ -192,8 +172,7 @@ func convertOp(v, t reflect2.Type) func(v, t rt.Value) error {
 		switch tKind {
 		case reflect.Struct:
 			return cvtMapToStruct
-		case reflect.Interface:
-			return cvtTToI
+
 		case reflect.Map:
 			return cvtMapToMap
 		}
@@ -217,20 +196,10 @@ func convertOp(v, t reflect2.Type) func(v, t rt.Value) error {
 	if tKind == reflect.Ptr {
 		return cvtTToPtr
 	}
-	return nil
-}
-
-func aggKind(kind reflect.Kind) reflect.Kind {
-	switch {
-	case kind >= reflect.Int && kind <= reflect.Int64:
-		return reflect.Int
-	case kind >= reflect.Uint && kind <= reflect.Uintptr:
-		return reflect.Uint
-	case kind >= reflect.Float32 && kind <= reflect.Float64:
-		return reflect.Float32
-	default:
-		return kind
+	if tKind == reflect.Interface {
+		return cvtTToI
 	}
+	return nil
 }
 
 func getKind(val reflect2.Type) reflect.Kind {
@@ -485,6 +454,18 @@ func cvtStringBool(v, t rt.Value) error {
 	return nil
 }
 
+// convertOp: String -> Slice
+func cvtStringSlice(v, t rt.Value) error {
+	switch t.Typ.(reflect2.SliceType).Elem().Kind() {
+	case reflect.Uint8:
+		return cvtStringBytes(v, t)
+	case reflect.Int32:
+		return cvtStringRunes(v, t)
+	default:
+		return ErrNotSupported
+	}
+}
+
 // convertOp: uintXX -> string
 func cvtUintString(v, t rt.Value) error {
 	value := v.Uint()
@@ -576,6 +557,18 @@ func cvtSliceToArray(v, t rt.Value) error {
 		}
 	}
 	return nil
+}
+
+// convertOp: Slice -> string
+func cvtSliceToString(v, t rt.Value) error {
+	switch v.Typ.(reflect2.SliceType).Elem().Kind() {
+	case reflect.Uint8:
+		return cvtBytesString(v, t)
+	case reflect.Int32:
+		return cvtRunesString(v, t)
+	default:
+		return ErrNotSupported
+	}
 }
 
 // convertOp: [N]T -> []T
