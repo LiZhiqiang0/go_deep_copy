@@ -9,14 +9,14 @@ import (
 	"unsafe"
 )
 
-var mFuncMap sync.Map
+var mFuncMap *MapRCU
 
 // 缓存结构体信息
-var structInfoCache *RCU
+var structInfoCache *LinerRCU
 
 func init() {
-	mFuncMap = sync.Map{}
-	structInfoCache = NewRCU()
+	mFuncMap = NewMapRCU()
+	structInfoCache = NewLinerRCU()
 }
 
 type rcuCacheInfo struct {
@@ -44,13 +44,16 @@ func LoadConvertFunc(v, t reflect2.Type) ConvertFunc {
 	if loaded {
 		return fi.(rcuCacheInfo).ConvertFunc
 	}
-	// Compute the real encoder and replace the indirect func with it.
 	f = convertOp(v, t)
 	wrapFunc := ConvertFunc(func(v rt.Value, t rt.Value) error {
 		if f == nil {
 			return ErrNotSupported
 		}
 		if v.Typ.UnsafeIsNil(v.Ptr) {
+			if t.Typ.Kind() == reflect.Ptr {
+				*((*unsafe.Pointer)(t.Ptr)) = nil
+				return nil
+			}
 			t.Typ.UnsafeSet(t.Ptr, t.Typ.UnsafeNew())
 			return nil
 		}
@@ -76,8 +79,7 @@ func convertOp(v, t reflect2.Type) func(v, t rt.Value) error {
 			return cvtIntString
 		case reflect.Bool:
 			return cvtIntBool
-		case reflect.Interface:
-			return cvtTToI
+
 		}
 	case reflect.Bool:
 		switch tKind {
@@ -91,8 +93,7 @@ func convertOp(v, t reflect2.Type) func(v, t rt.Value) error {
 			return cvtBoolString
 		case reflect.Bool:
 			return cvtBool
-		case reflect.Interface:
-			return cvtTToI
+
 		}
 	case reflect.Uint:
 		switch tKind {
@@ -104,8 +105,7 @@ func convertOp(v, t reflect2.Type) func(v, t rt.Value) error {
 			return cvtUintString
 		case reflect.Bool:
 			return cvtIntBool
-		case reflect.Interface:
-			return cvtTToI
+
 		}
 
 	case reflect.Float32:
@@ -118,27 +118,19 @@ func convertOp(v, t reflect2.Type) func(v, t rt.Value) error {
 			return cvtFloat
 		case reflect.Bool:
 			return cvtFloatBool
-		case reflect.Interface:
-			return cvtTToI
+
 		}
 
 	case reflect.Complex64, reflect.Complex128:
 		switch tKind {
 		case reflect.Complex64, reflect.Complex128:
 			return cvtComplex
-		case reflect.Interface:
-			return cvtTToI
 		}
 
 	case reflect.String:
 		switch tKind {
 		case reflect.Slice:
-			switch t.(reflect2.SliceType).Elem().Kind() {
-			case reflect.Uint8:
-				return cvtStringBytes
-			case reflect.Int32:
-				return cvtStringRunes
-			}
+			return cvtStringSlice
 		case reflect.String:
 			return cvtString
 		case reflect.Int:
@@ -148,26 +140,19 @@ func convertOp(v, t reflect2.Type) func(v, t rt.Value) error {
 		case reflect.Float32:
 			return cvtStringFloat
 		case reflect.Bool:
-			return cvtIntBool
-		case reflect.Interface:
-			return cvtTToI
+			return cvtStringBool
+
 		}
 
 	case reflect.Slice:
 		switch tKind {
 		case reflect.String:
-			switch v.(reflect2.SliceType).Elem().Kind() {
-			case reflect.Uint8:
-				return cvtBytesString
-			case reflect.Int32:
-				return cvtRunesString
-			}
+			return cvtSliceToString
 		case reflect.Slice:
 			return cvtSliceToSlice
 		case reflect.Array:
 			return cvtSliceToArray
-		case reflect.Interface:
-			return cvtTToI
+
 		}
 
 	case reflect.Array:
@@ -176,15 +161,13 @@ func convertOp(v, t reflect2.Type) func(v, t rt.Value) error {
 			return cvtArrayToSlice
 		case reflect.Array:
 			return cvtArray
-		case reflect.Interface:
-			return cvtTToI
+
 		}
 	case reflect.Struct:
 		switch tKind {
 		case reflect.Struct:
 			return cvtStructToStruct
-		case reflect.Interface:
-			return cvtTToI
+
 		case reflect.Map:
 			return cvtStructToMap
 		}
@@ -192,8 +175,7 @@ func convertOp(v, t reflect2.Type) func(v, t rt.Value) error {
 		switch tKind {
 		case reflect.Struct:
 			return cvtMapToStruct
-		case reflect.Interface:
-			return cvtTToI
+
 		case reflect.Map:
 			return cvtMapToMap
 		}
@@ -217,20 +199,10 @@ func convertOp(v, t reflect2.Type) func(v, t rt.Value) error {
 	if tKind == reflect.Ptr {
 		return cvtTToPtr
 	}
-	return nil
-}
-
-func aggKind(kind reflect.Kind) reflect.Kind {
-	switch {
-	case kind >= reflect.Int && kind <= reflect.Int64:
-		return reflect.Int
-	case kind >= reflect.Uint && kind <= reflect.Uintptr:
-		return reflect.Uint
-	case kind >= reflect.Float32 && kind <= reflect.Float64:
-		return reflect.Float32
-	default:
-		return kind
+	if tKind == reflect.Interface {
+		return cvtTToI
 	}
+	return nil
 }
 
 func getKind(val reflect2.Type) reflect.Kind {
@@ -485,6 +457,18 @@ func cvtStringBool(v, t rt.Value) error {
 	return nil
 }
 
+// convertOp: String -> Slice
+func cvtStringSlice(v, t rt.Value) error {
+	switch t.Typ.(reflect2.SliceType).Elem().Kind() {
+	case reflect.Uint8:
+		return cvtStringBytes(v, t)
+	case reflect.Int32:
+		return cvtStringRunes(v, t)
+	default:
+		return ErrNotSupported
+	}
+}
+
 // convertOp: uintXX -> string
 func cvtUintString(v, t rt.Value) error {
 	value := v.Uint()
@@ -576,6 +560,18 @@ func cvtSliceToArray(v, t rt.Value) error {
 		}
 	}
 	return nil
+}
+
+// convertOp: Slice -> string
+func cvtSliceToString(v, t rt.Value) error {
+	switch v.Typ.(reflect2.SliceType).Elem().Kind() {
+	case reflect.Uint8:
+		return cvtBytesString(v, t)
+	case reflect.Int32:
+		return cvtRunesString(v, t)
+	default:
+		return ErrNotSupported
+	}
 }
 
 // convertOp: [N]T -> []T
@@ -697,6 +693,10 @@ func cvtIToI(v rt.Value, t rt.Value) error {
 }
 
 func cvtTToPtr(v rt.Value, t rt.Value) error {
+	if v.Typ.Kind() == reflect.Ptr && *((*unsafe.Pointer)(v.Ptr)) == nil {
+		*((*unsafe.Pointer)(t.Ptr)) = nil
+		return nil
+	}
 	t.Typ = t.Typ.(*reflect2.UnsafePtrType).Elem()
 	cvtFunc := LoadConvertFunc(v.Typ, t.Typ)
 	newPtr := t.Typ.UnsafeNew()
@@ -718,6 +718,10 @@ func cvtPtrToT(v rt.Value, t rt.Value) error {
 		return nil
 	}
 	if *((*unsafe.Pointer)(v.Ptr)) == nil {
+		if t.Typ.Kind() == reflect.Ptr {
+			*((*unsafe.Pointer)(t.Ptr)) = nil
+			return nil
+		}
 		t.Typ.UnsafeSet(t.Ptr, t.Typ.UnsafeNew())
 		return nil
 	} else {
@@ -737,10 +741,7 @@ func cvtPtrToT(v rt.Value, t rt.Value) error {
 func cvtStructToStruct(v rt.Value, t rt.Value) error {
 	vInfo := loadStructFieldsInfo(v.Typ)
 	tInfo := loadStructFieldsInfo(t.Typ)
-	tFieldMap := make(map[string]*Binding, len(tInfo.Fields))
-	for i := 0; i < len(tInfo.Fields); i++ {
-		tFieldMap[tInfo.Fields[i].Name] = tInfo.Fields[i]
-	}
+	tFieldMap := tInfo.FieldMap
 	vPtr := v.Ptr
 	tPtr := t.Ptr
 	for i := 0; i < len(vInfo.Fields); i++ {
@@ -876,10 +877,7 @@ func cvtMapToStruct(v rt.Value, t rt.Value) error {
 		return nil
 	}
 	tInfo := loadStructFieldsInfo(t.Typ)
-	tFieldMap := make(map[string]reflect2.StructField, len(tInfo.Fields))
-	for i := 0; i < len(tInfo.Fields); i++ {
-		tFieldMap[tInfo.Fields[i].Field.Name()] = tInfo.Fields[i].Field
-	}
+	tFieldMap := tInfo.FieldMap
 	vElemType := vType.Elem()
 	iter := vType.UnsafeIterate(v.Ptr)
 	for iter.HasNext() {
@@ -889,12 +887,12 @@ func cvtMapToStruct(v rt.Value, t rt.Value) error {
 		if !ok {
 			continue
 		}
-		tfType := tf.Type()
+		tfType := tf.Field.Type()
 		cvtFunc := LoadConvertFunc(vElemType, tfType)
 		if cvtFunc == nil {
 			continue
 		}
-		childTPtr := pointerOffset(t.Ptr, tf.Offset())
+		childTPtr := pointerOffset(t.Ptr, tf.Field.Offset())
 		err := cvtFunc(rt.Value{
 			Ptr: vElem,
 			Typ: vElemType,

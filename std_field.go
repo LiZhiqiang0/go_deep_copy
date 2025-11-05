@@ -50,8 +50,9 @@ func (x byIndex) Less(i, j int) bool {
 
 // StructDescriptor describe how should we encode/decode the struct
 type StructDescriptor struct {
-	Type   reflect2.Type
-	Fields []*Binding
+	Type     reflect2.Type
+	Fields   []*Binding
+	FieldMap map[string]*Binding
 }
 
 // Binding describe how should we encode/decode the struct field
@@ -333,11 +334,14 @@ func dominantField(fields []field) (field, bool) {
 }
 
 func loadStructFieldsInfo(vt reflect2.Type) StructDescriptor {
-	if structInfo, ok := structInfoCache.Get(vt); ok {
+	if structInfo, ok := structInfoCache.Load(vt); ok {
 		return structInfo.(StructDescriptor)
 	}
 	structInfo := describeStruct(vt)
-	// 并发写；无法处理递归
-	structInfoCache.Set(vt, structInfo)
+	structInfo.FieldMap = make(map[string]*Binding, len(structInfo.Fields))
+	for i := 0; i < len(structInfo.Fields); i++ {
+		structInfo.FieldMap[structInfo.Fields[i].Name] = structInfo.Fields[i]
+	}
+	structInfoCache.Store(vt, structInfo)
 	return structInfo
 }

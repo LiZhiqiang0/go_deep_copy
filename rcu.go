@@ -7,14 +7,14 @@ import (
 	"unsafe"
 )
 
-// RCU 依据 Read Copy Update 原理实现
-type RCU struct {
+// LinerRCU 依据 Read Copy Update 原理实现
+type LinerRCU struct {
 	lock sync.Mutex
 	m    unsafe.Pointer
 }
 
-func NewRCU() (c *RCU) {
-	return &RCU{
+func NewLinerRCU() (c *LinerRCU) {
+	return &LinerRCU{
 		lock: sync.Mutex{},
 		m: unsafe.Pointer(&linerMap{
 			n: 0,
@@ -24,13 +24,13 @@ func NewRCU() (c *RCU) {
 	}
 }
 
-func (c *RCU) Get(key reflect2.Type) (v any, ok bool) {
+func (c *LinerRCU) Load(key reflect2.Type) (v any, ok bool) {
 	m := (*linerMap)(atomic.LoadPointer(&c.m))
 	res := m.get(key)
 	return res, res != nil
 }
 
-func (c *RCU) Set(key reflect2.Type, v any) {
+func (c *LinerRCU) Store(key reflect2.Type, v any) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -38,8 +38,8 @@ func (c *RCU) Set(key reflect2.Type, v any) {
 	atomic.StorePointer(&c.m, unsafe.Pointer(m.add(key, v)))
 }
 
-func (c *RCU) GetOrSet(key reflect2.Type, newV any) (v any, loaded bool) {
-	got, ok := c.Get(key)
+func (c *LinerRCU) LoadOrStore(key reflect2.Type, newV any) (v any, loaded bool) {
+	got, ok := c.Load(key)
 	if ok {
 		return got, true
 	}
@@ -75,14 +75,6 @@ type linerMap struct {
 type mapEntry struct {
 	vt reflect2.Type
 	fn any
-}
-
-func newProgramMap() *linerMap {
-	return &linerMap{
-		n: 0,
-		m: _InitCapacity - 1,
-		b: make([]mapEntry, _InitCapacity),
-	}
 }
 
 func (self *linerMap) copy() *linerMap {
@@ -165,4 +157,60 @@ func (self *linerMap) insert(vt reflect2.Type, fn any) {
 
 	/* should never happens */
 	panic("no available slots")
+}
+
+// MapRCU 依据 Read Copy Update 原理实现
+type MapRCU struct {
+	lock sync.Mutex
+	m    unsafe.Pointer
+}
+
+func NewMapRCU() (c *MapRCU) {
+	hashMap := make(map[[2]uintptr]any, 10)
+	return &MapRCU{
+		lock: sync.Mutex{},
+		m:    unsafe.Pointer(&hashMap),
+	}
+}
+
+func (c *MapRCU) Load(key [2]uintptr) (v any, ok bool) {
+	m := *(*map[[2]uintptr]any)(atomic.LoadPointer(&c.m))
+	v, ok = m[key]
+	return v, ok
+}
+
+func (c *MapRCU) Store(key [2]uintptr, v any) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	m := *(*map[[2]uintptr]any)(atomic.LoadPointer(&c.m))
+	newM := make(map[[2]uintptr]any, len(m)+1)
+	for k, v := range m {
+		newM[k] = v
+	}
+	atomic.StorePointer(&c.m, unsafe.Pointer(&newM))
+}
+
+func (c *MapRCU) LoadOrStore(key [2]uintptr, newV any) (v any, loaded bool) {
+	got, ok := c.Load(key)
+	if ok {
+		return got, true
+	}
+
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	m := *(*map[[2]uintptr]any)(atomic.LoadPointer(&c.m))
+
+	// double check
+	v, ok = m[key]
+	if ok {
+		return v, true
+	}
+
+	newM := make(map[[2]uintptr]any, len(m)+1)
+	for k, v := range m {
+		newM[k] = v
+	}
+	newM[key] = newV
+	atomic.StorePointer(&c.m, unsafe.Pointer(&newM))
+	return newV, false
 }
