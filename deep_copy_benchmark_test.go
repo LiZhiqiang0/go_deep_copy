@@ -7,29 +7,68 @@ import (
 	"testing"
 )
 
+type Book struct {
+	BookId  int
+	BookIds []int
+	Title   string
+	Titles  []string
+	Price   float64
+	Prices  []float64
+	Hot     bool
+	Hots    []bool
+	Author  Author
+	Authors []Author
+	Weights []int
+}
+
+type Author struct {
+	Name string
+	Age  int
+	Male bool
+}
+
+var book = Book{
+	BookId:  12125925,
+	BookIds: []int{-2147483648, 2147483647},
+	Title:   "未来简史-从智人到智神",
+	Titles:  []string{"hello", "world"},
+	Price:   40.8,
+	Prices:  []float64{-0.1, 0.1},
+	Hot:     true,
+	Hots:    []bool{true, true, true},
+	Author:  author,
+	Authors: []Author{author, author, author},
+	Weights: nil,
+}
+
+var author = Author{
+	Name: "json",
+	Age:  99,
+	Male: true,
+}
+
 func BenchmarkCopyStruct(b *testing.B) {
-	var fakeAge int32 = 12
-	user := User{Name: "Jinzhu", NickName: "jinzhu", Age: 18, FakeAge: &fakeAge, Role: "Admin", Notes: []string{"hello world", "welcome"}, Flags: []byte{'x'}}
+
 	runs := []struct {
 		name string
 		f    func()
 	}{
 		{"copier",
 			func() {
-				a := User{}
-				copier.CopyWithOption(&a, &user, copier.Option{DeepCopy: true})
+				a := Book{}
+				copier.CopyWithOption(&a, &book, copier.Option{DeepCopy: true})
 			},
 		},
 		{"go_deep_copy",
 			func() {
-				a := User{}
-				go_deep_copy.DeepCopy(&user, &a)
+				a := Book{}
+				go_deep_copy.DeepCopy(&book, &a)
 			},
 		},
 		{"json",
 			func() {
-				data, _ := json.Marshal(user)
-				a := User{}
+				data, _ := json.Marshal(book)
+				a := Book{}
 				json.Unmarshal(data, &a)
 			},
 		},
