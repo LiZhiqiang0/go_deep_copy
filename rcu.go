@@ -1,7 +1,7 @@
 package go_deep_copy
 
 import (
-	"github.com/modern-go/reflect2"
+	"github.com/LiZhiqiang0/reflect2"
 	"sync"
 	"sync/atomic"
 	"unsafe"
