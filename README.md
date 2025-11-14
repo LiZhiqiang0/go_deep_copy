@@ -1,35 +1,35 @@
-# Go Deep Copy - 高性能深拷贝库
+# Go Deep Copy - High-Performance Deep Copy Library
 
-Go Deep Copy 是一个高性能的 Go 语言深拷贝库，专注于结构体、切片、Map 等复杂数据结构的深度复制。它采用反射和代码生成技术，提供了快速、安全、灵活的数据复制功能。性能优于github.com/jinzhu/copier和json序列化方式深拷贝
+Go Deep Copy is a high-performance Go deep copy library focused on deep copying of complex data structures such as structs, slices, and Maps. It uses reflection and code generation techniques to provide fast, safe, and flexible data copying functionality. Performance is better than github.com/jinzhu/copier and JSON serialization methods.
 
-## 🌟 核心特性
+## 🌟 Core Features
 
-### 深拷贝支持
-- **结构体深拷贝**：完整复制嵌套结构体，确保数据独立性
-- **切片深拷贝**：复制切片底层数据，避免共享底层数组
-- **Map 深拷贝**：递归复制 Map 中的所有值
-- **指针深拷贝**：正确处理指针字段，创建新的内存空间
+### Deep Copy Support
+- **Struct Deep Copy**: Complete copying of nested structs, ensuring data independence
+- **Slice Deep Copy**: Copy slice underlying data to avoid sharing underlying arrays
+- **Map Deep Copy**: Recursively copy all values in Map
+- **Pointer Deep Copy**: Correctly handle pointer fields and create new memory space
 
-### 智能类型转换
-- **自动类型转换**：支持基本类型之间的自动转换（int ↔ int64 ↔ float64 ↔ string）
-- **结构体互转**：不同结构体之间的字段映射和转换
-- **Map ↔ 结构体**：双向转换，支持复杂嵌套结构
-- **切片类型转换**：支持不同元素类型的切片转换
+### Smart Type Conversion
+- **Automatic Type Conversion**: Support automatic conversion between basic types (int ↔ int64 ↔ float64 ↔ string)
+- **Struct Interconversion**: Field mapping and conversion between different structs
+- **Map ↔ Struct**: Bidirectional conversion, supporting complex nested structures
+- **Slice Type Conversion**: Support slice conversion of different element types
 
-### 高级功能
-- **字段映射**：支持不同名称字段之间的映射
-- **高性能优化**：使用 unsafe 包和反射优化，比标准反射更快
-- **并发安全**：支持并发环境下的深拷贝操作
+### Advanced Features
+- **Field Mapping**: Support mapping between fields with different names
+- **High-Performance Optimization**: Use unsafe package and reflection optimization, faster than standard reflection
+- **Concurrent Safety**: Support deep copy operations in concurrent environments
 
-## 🚀 快速开始
+## 🚀 Quick Start
 
-### 安装
+### Installation
 
 ```bash
 go get -u github.com/LiZhiqiang0/go_deep_copy
 ```
 
-### 基础使用
+### Basic Usage
 
 ```go
 package main
@@ -52,8 +52,8 @@ type Employee struct {
 }
 
 func main() {
-    // 结构体到结构体复制
-    user := User{Name: "张三", Age: 30, Email: "zhangsan@example.com"}
+    // Struct to struct copy
+    user := User{Name: "John", Age: 30, Email: "john@example.com"}
     var employee Employee
     
     err := go_deep_copy.DeepCopy(&user, &employee)
@@ -62,13 +62,13 @@ func main() {
     }
     
     fmt.Printf("Employee: %+v\n", employee)
-    // 输出: Employee: {Name:张三 Age:30 Email:zhangsan@example.com}
+    // Output: Employee: {Name:John Age:30 Email:john@example.com}
 }
 ```
 
-## 📖 详细功能
+## 📖 Detailed Features
 
-### 1. 结构体深拷贝
+### 1. Struct Deep Copy
 
 ```go
 package main
@@ -91,11 +91,11 @@ type Person struct {
 
 func main() {
     person1 := &Person{
-        Name: "李四",
+        Name: "Alice",
         Age:  25,
         Address: &Address{
-            City:    "北京",
-            Country: "中国",
+            City:    "New York",
+            Country: "USA",
         },
     }
     
@@ -105,14 +105,14 @@ func main() {
         panic(err)
     }
     
-    // 修改原始数据，验证深拷贝
-    person1.Address.City = "上海"
-    fmt.Printf("person1.Address.City: %s\n", person1.Address.City) // 上海
-    fmt.Printf("person2.Address.City: %s\n", person2.Address.City) // 北京
+    // Modify original data to verify deep copy
+    person1.Address.City = "Los Angeles"
+    fmt.Printf("person1.Address.City: %s\n", person1.Address.City) // Los Angeles
+    fmt.Printf("person2.Address.City: %s\n", person2.Address.City) // New York
 }
 ```
 
-### 2. Map 与结构体互转
+### 2. Map and Struct Interconversion
 
 ```go
 package main
@@ -129,11 +129,11 @@ type User struct {
 }
 
 func main() {
-    // Map 到结构体
+    // Map to struct
     mapData := map[string]interface{}{
-        "Name": "王五",
+        "Name": "Bob",
         "Age":  int64(35),
-        "Email": "wangwu@example.com",
+        "Email": "bob@example.com",
     }
 
     var user User
@@ -143,7 +143,7 @@ func main() {
     }
     fmt.Printf("Map to User: %+v\n", user)
 
-    // 结构体到 Map
+    // Struct to Map
     var result map[string]interface{}
     err = go_deep_copy.DeepCopy(&user, &result)
     if err != nil {
@@ -153,7 +153,7 @@ func main() {
 }
 ```
 
-### 3. 切片深拷贝
+### 3. Slice Deep Copy
 
 ```go
 package main
@@ -171,8 +171,8 @@ type Product struct {
 
 func main() {
     products1 := []Product{
-        {ID: 1, Name: "手机", Price: 2999.99},
-        {ID: 2, Name: "电脑", Price: 5999.99},
+        {ID: 1, Name: "Phone", Price: 2999.99},
+        {ID: 2, Name: "Computer", Price: 5999.99},
     }
     
     var products2 []Product
@@ -181,16 +181,16 @@ func main() {
         panic(err)
     }
     
-    // 修改原始数据，验证深拷贝
+    // Modify original data to verify deep copy
     products1[0].Price = 1999.99
     fmt.Printf("products1[0].Price: %.2f\n", products1[0].Price) // 1999.99
     fmt.Printf("products2[0].Price: %.2f\n", products2[0].Price) // 2999.99
 }
 ```
 
-## ⚙️ 高级选项
+## ⚙️ Advanced Options
 
-### 字段名映射
+### Field Name Mapping
 
 ```go
 package main
@@ -208,12 +208,12 @@ type Source struct {
 
 type Target struct {
     Name     string
-    Secret   string `go_deep_copy:"-"`        // 忽略此字段
-    TargetID int    `go_deep_copy:"ID"`      // 映射到源结构的 ID 字段
+    Secret   string `go_deep_copy:"-"`        // Ignore this field
+    TargetID int    `go_deep_copy:"ID"`      // Map to source struct's ID field
 }
 
 func main() {
-    source := Source{Name: "测试", Secret: "机密", ID: 1001}
+    source := Source{Name: "Test", Secret: "Confidential", ID: 1001}
     var target Target
     
     err := go_deep_copy.DeepCopy(&source, &target)
@@ -222,39 +222,38 @@ func main() {
     }
     
     fmt.Printf("Target: %+v\n", target)
-    // 输出: Target: {Name:测试 Secret: TargetID:1001}
+    // Output: Target: {Name:Test Secret: TargetID:1001}
 }
 ```
 
-## 🎯 性能优势
+## 🎯 Performance Advantages
 
-- **高性能反射**：使用 unsafe 包和反射优化，比标准反射更快
-- **指针处理**：使用指针+偏移量寻址，避免了反射调用的开销
-- **缓存机制**：转换函数和结构体反射信息缓存，避免重复反射操作
+- **High-Performance Reflection**: Uses unsafe package and reflection optimization, faster than standard reflection
+- **Pointer Handling**: Uses pointer + offset addressing, avoiding reflection call overhead
+- **Cache Mechanism**: Caches conversion functions and struct reflection information to avoid repeated reflection operations
 
-### 性能对比
+### Performance Comparison
 
-以下是本库与copier库、json 序列化方式的性能对比：
+Here is the performance comparison between this library and copier library, JSON serialization:
 
 ```
 BenchmarkCopyStruct/copier-10             850699             14030 ns/op            4248 B/op        178 allocs/op
-BenchmarkCopyStruct/go_deep_copy-10      3918260              3010 ns/op             672 B/op         18 allocs/op
-BenchmarkCopyStruct/json-10              2142386              5604 ns/op            1641 B/op         37 allocs/o
+BenchmarkCopyStruct/go_deep_copy-10      5380696              2182 ns/op             672 B/op         18 allocs/op
+BenchmarkCopyStruct/json-10              2142386              5604 ns/op            1641 B/op         37 allocs/op
 ```
 
-可以看到，本库在性能上相比copier库、json 序列化方式有显著提升，内存分配也更少。
+As you can see, this library has significant performance improvements compared to copier library and JSON serialization, with fewer memory allocations.
 
-## 📋 支持类型
+## 📋 Supported Types
 
-### 基本类型
-- 所有基本类型（int, float, string, bool 等）
-- 基本类型的指针和切片
-- 时间类型（time.Time）
+### Basic Types
+- All basic types (int, float, string, bool, etc.)
+- Pointers and slices of basic types
+- Time types (time.Time)
 
-### 复杂类型
-- 结构体（支持嵌套）
-- 切片和数组
-- Map（支持嵌套）
-- 接口类型
-- 指针类型
-
+### Complex Types
+- Structs (support nesting)
+- Slices and arrays
+- Maps (support nesting)
+- Interface types
+- Pointer types

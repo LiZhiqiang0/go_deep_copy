@@ -1,12 +1,13 @@
 package go_deep_copy
 
 import (
-	"github.com/LiZhiqiang0/go_deep_copy/rt"
-	"github.com/modern-go/reflect2"
 	"reflect"
 	"strconv"
 	"sync"
 	"unsafe"
+
+	"github.com/LiZhiqiang0/go_deep_copy/rt"
+	"github.com/LiZhiqiang0/reflect2"
 )
 
 var mFuncMap *MapRCU

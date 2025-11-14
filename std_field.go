@@ -3,7 +3,7 @@ package go_deep_copy
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/modern-go/reflect2"
+	"github.com/LiZhiqiang0/reflect2"
 	"reflect"
 	"sort"
 	"strings"
